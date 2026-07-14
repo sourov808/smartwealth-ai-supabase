@@ -2,25 +2,71 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #37352f;
+  --card: #fbfbfa;
+  --card-foreground: #37352f;
+  --border: #e3e2e0;
+  --ring: #37352f;
+  
+  --color-sage: #448361;
+  --color-sage-hover: #37694d;
+  --color-sage-light: #edf6ec;
+  
+  --color-rust: #d44c47;
+  --color-rust-hover: #b33e3a;
+  --color-rust-light: #fbebeb;
+
+  --color-amber-brand: #df9016;
+  --color-amber-brand-hover: #c57d11;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #191919;
+    --foreground: rgba(255, 255, 255, 0.9);
+    --card: #202020;
+    --card-foreground: rgba(255, 255, 255, 0.9);
+    --border: #2c2c2c;
+    --ring: rgba(255, 255, 255, 0.9);
+
+    --color-sage: #6bab88;
+    --color-sage-hover: #589272;
+    --color-sage-light: #1f2a24;
+    
+    --color-rust: #ff7369;
+    --color-rust-hover: #e06259;
+    --color-rust-light: #321c1a;
+
+    --color-amber-brand: #e9a941;
+    --color-amber-brand-hover: #d19432;
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-sage: var(--color-sage);
+  --color-sage-hover: var(--color-sage-hover);
+  --color-sage-light: var(--color-sage-light);
+  
+  --color-rust: var(--color-rust);
+  --color-rust-hover: var(--color-rust-hover);
+  --color-rust-light: var(--color-rust-light);
+
+  --color-amber-brand: var(--color-amber-brand);
+  --color-amber-brand-hover: var(--color-amber-brand-hover);
+  
+  --font-sans: var(--font-sans), sans-serif;
+  --font-mono: var(--font-geist-mono), monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
