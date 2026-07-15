@@ -12,24 +12,33 @@ Design spec: `docs/superpowers/specs/2026-07-15-agentic-layer-design.md`
 - **Tech Stack**:
   - Language: Python >= 3.13, managed with `uv`
   - Web: FastAPI, SSE streaming
-  - LLM: Groq, accessed through the OpenAI SDK (`base_url="https://api.groq.com/openai/v1"`)
-  - Orchestration: raw OpenAI SDK tool loop. **No LangGraph** — see Decisions below.
-  - Database: `supabase-py`, RLS-scoped by the user's forwarded JWT
-  - Validation: pydantic (single source for both tool JSON schemas and runtime validation)
+  - LLM: Groq (`openai/gpt-oss-120b`), via `AsyncOpenAI(base_url="https://api.groq.com/openai/v1")`
+  - Orchestration: **OpenAI Agents SDK** (`openai-agents` 0.18). No LangGraph, not a raw loop —
+    see Decisions below.
+  - Tracing: the SDK's own tracing is **disabled** (`set_tracing_disabled(True)`); it requires an
+    OpenAI key this service does not have. Tracing is handled by other tooling.
+  - Database: `supabase-py` 2.31, RLS-scoped by the user's forwarded JWT
+  - Validation: the SDK generates tool schemas from type hints + docstrings
 
 ## Architecture & Conventions
 
 ### 1. Four layers, one direction of dependency
 ```
-Next.js /api/chat  ->  api/  ->  llm/  ->  tools/  ->  db/
+Next.js /api/chat  ->  api/  ->  agent/  ->  tools/  ->  db/
 ```
 Nothing skips a layer. The boundary rules are what keep files small:
-- `db/` knows nothing about LLMs. Arguments in, rows out.
-- `tools/` knows nothing about HTTP. LLM JSON args -> `db/` calls.
-- `llm/` knows nothing about FastAPI. Yields events.
-- `api/` knows nothing about Groq. Wires request -> loop -> SSE.
+- `db/` knows nothing about LLMs. Plain **sync** functions: arguments in, rows out.
+- `tools/` knows nothing about HTTP. Unwraps the run context and calls `db/`.
+- `agent/` knows nothing about FastAPI. Yields events.
+- `api/` knows nothing about Groq. Wires request -> run -> SSE.
 
-Target: ~12 files, each under ~100 lines. Anti-monolith, mirroring the frontend convention.
+Target: each file under ~100 lines. Anti-monolith, mirroring the frontend convention.
+
+### 1b. Async, with one rule
+`Runner.run_streamed()` is an async iterator, so `api/`, `agent/`, and the tool functions are
+`async def`. But **supabase-py is synchronous** — every db call from a tool goes through
+`asyncio.to_thread`, or it blocks the event loop. The `db/` layer itself stays plain sync
+functions, which keeps it trivial to read and test.
 
 ### 2. Security model — the database is the enforcement point
 - Next.js reads the session server-side and forwards `session.access_token` as
@@ -60,12 +69,13 @@ layer as real errors.
 
 ## Decisions & Rationale
 
-- **Raw SDK over LangGraph**: the loop is ~40 lines; a framework would hide the part most worth
-  understanding. Single agent, 8 tools, stateless, non-branching — `StateGraph` earns nothing.
-  LangGraph's real draws (`interrupt()` for human-in-the-loop, checkpointer/store for memory)
-  are routed around: Next.js owns the delete, and memory is deferred. `llm/loop.py` is the only
-  file that knows the loop, so migrating later means rewriting one file.
-  **Reevaluate at the memory phase.**
+- **OpenAI Agents SDK, over both LangGraph and a raw loop.** LangGraph was rejected outright: its
+  draws (`interrupt()`, checkpointer/store) are routed around here, since Next.js owns the delete
+  and memory is deferred. The Agents SDK won over a raw loop because `@function_tool` generates
+  schemas from type hints + docstrings (deleting a hand-written schema/registry module and its
+  drift risk), `failure_error_function` is exactly our error policy, `RunContextWrapper` threads
+  the per-request Supabase client cleanly, and `Sessions` maps onto the memory phase. The cost
+  paid knowingly: the loop is now a black box rather than ~40 readable lines.
 - **Fixed typed tools over raw SQL**: three small tables. Predictable, testable, and the LLM
   cannot invent an expensive or malformed query.
 - **Aggregation in Python, not Postgres**: one user's transactions is a trivial volume. An RPC
@@ -73,12 +83,38 @@ layer as real errors.
 
 ## Gotchas
 
-- **Groq model IDs churn.** Never hardcode one from memory. Query
-  `GET https://api.groq.com/openai/v1/models`, pick from the live list, and confirm tool-calling
-  support. The ID lives in `config.py` as an env var.
-- **`transactions.type` and `recurring_interval` are typed `string`** in the generated
-  `types/supabase.ts`. Confirm the real allowed values against the live database before writing
-  enums in `models.py`.
+All of these were verified against the live Groq and Supabase, not recalled from memory.
+
+- **`@function_tool(strict_mode=False)` is MANDATORY on every tool.** The SDK defaults to
+  `strict_mode=True`, which breaks this design two ways:
+  1. It forces every optional argument into the schema's `required` list, so optional filters
+     stop being optional and the model invents values. An observed run passed `category='food'`
+     on a question that named no category.
+  2. With `Optional[SomeEnum]`, pydantic emits `anyOf: [Enum, null]` and Groq hard-rejects it:
+     `400 ... anyOf branches must be disambiguated via a required discriminator`.
+
+  With `strict_mode=False`, `required` correctly omits optional args and the model supplies
+  correctly-capitalized enum values. A test asserts no tool marks an optional arg required.
+
+- **The Groq model ID is `openai/gpt-oss-120b`, WITH the `openai/` prefix.** The bare
+  `gpt-oss-120b` does not exist and 404s. Groq's catalog churns — never hardcode from memory:
+  ```
+  curl -s https://api.groq.com/openai/v1/models -H "Authorization: Bearer $GROQ_API_KEY"
+  ```
+
+- **The Supabase client needs BOTH `apiKey` and `Authorization` headers.** `Authorization` alone
+  returns 401 from the gateway. And `Client.create()` only injects `apiKey` when the caller has
+  *not* supplied their own `Authorization` (supabase/_sync/client.py:108) — which we always do.
+  Passing a `headers` dict also replaces the library defaults entirely. So pass both, explicitly.
+
+- **`gpt-oss` is a reasoning model.** The stream emits `reasoning_item_created` events. Map or
+  ignore them deliberately; don't let them surprise you.
+
+- **The DB does not constrain vocabulary.** `type`, `category`, and `recurring_interval` are all
+  plain `string` with no CHECK constraints. Postgres will happily store `category="Groceries"`,
+  and the budgets page (which matches by string equality) will then silently never match it.
+  The `models.py` enums are the ONLY guard. Values come from the frontend, the sole definition:
+  `components/dashboard/transaction-modal.tsx`.
 - **Next.js here has breaking changes** from common knowledge. Read the relevant guide under
   `node_modules/next/dist/docs/` before writing the route handler. See root `AGENTS.md`.
 - **Root `memory.md` is aspirational about testing.** It claims Vitest with `tests/utils.test.ts`

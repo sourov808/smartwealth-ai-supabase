@@ -20,28 +20,61 @@ weekly summaries) are a later phase and out of scope for this spec.
 | Agent surface | Chat copilot first, background workers later | User-triggered flow is the smaller, testable slice. Workers need a different auth model. |
 | Transport | Python FastAPI HTTP service, proxied by a Next.js route | Clean process boundary. Streaming via SSE. `agents/` stays its own deployable. |
 | LLM provider | Groq, via the OpenAI SDK (`base_url="https://api.groq.com/openai/v1"`) | OpenAI-compatible tool calling. Fast inference. |
-| Orchestration | Raw OpenAI SDK tool loop. No LangGraph. | See "Orchestration" below. |
+| Orchestration | OpenAI Agents SDK 0.18 (`openai-agents`), pointed at Groq. No LangGraph. | See "Orchestration" below. |
+| Tracing | The SDK's built-in tracing is disabled (`set_tracing_disabled(True)`). Handled externally. | It requires an OpenAI API key, which this service does not have. |
 | Database auth | Forward the user's Supabase JWT | RLS enforces user isolation in Postgres, so an LLM mistake cannot cross users. |
 | Write policy | Reads and writes auto-execute; deletes require user confirmation | Inserts/updates are cheap to undo. Deletes are not. |
 | Tool surface | Eight fixed typed tools. No raw SQL. | Schema is three small tables. Predictable and testable. |
 | Conversation state | None server-side. Frontend sends the message array each turn. | No chat table needed yet. YAGNI. |
 
-### Orchestration: why raw SDK, not LangGraph
+### Orchestration: OpenAI Agents SDK
 
-The tool loop is roughly 40 lines: call the model, check `tool_calls`, run handlers, append
-`role: "tool"` messages, repeat. A framework would hide the one part of this project most worth
-understanding. This is a single agent with eight tools, stateless and non-branching — a
-`StateGraph` earns nothing over the loop it wraps.
+Three options were weighed: a raw OpenAI SDK tool loop, LangGraph, and the OpenAI Agents SDK.
 
-The honest case for LangGraph is real but deferred: `interrupt()` targets human-in-the-loop
-flows, and its checkpointer/store map onto short-term and long-term memory — the next phase.
-Both draws are routed around here. Delete-confirm needs no `interrupt()` because Next.js owns
-the delete (see Tools), and memory is explicitly out of scope.
+**LangGraph was rejected.** Its real draws — `interrupt()` for human-in-the-loop, and its
+checkpointer/store for memory — are both routed around by this design. Next.js owns the delete,
+so no `interrupt()` is needed, and memory is out of scope. A `StateGraph` earns nothing over a
+single non-branching agent.
 
-The layered design contains the blast radius: `llm/loop.py` is the only file that knows how the
-loop works. `tools/`, `db/`, and `api/` do not. Migrating to LangGraph later means rewriting one
-file. **Reevaluate at the memory phase**, when durable checkpointing and semantic recall are
-actually on the table and the loop it would replace is well understood.
+**The Agents SDK was chosen over a raw loop.** The tradeoff is honest and was made with eyes
+open: a raw loop is ~40 lines and teaches how tool calling actually works, which has real value.
+Against that, the SDK provides:
+
+- `@function_tool` generates the JSON schema from type hints and the docstring, which removes a
+  hand-written schema/registry module and the drift risk that comes with it.
+- `failure_error_function` returns tool errors to the model rather than raising — exactly the
+  error policy this design already specified.
+- `RunContextWrapper` threads the per-request Supabase client into tools cleanly.
+- `Sessions` map onto the deferred memory phase.
+
+Its built-in tracing wants an OpenAI API key and is disabled via `set_tracing_disabled(True)`;
+tracing is handled by other tooling.
+
+Groq is not the SDK's primary path, so the integration is pinned explicitly:
+`OpenAIChatCompletionsModel(model=<GROQ_MODEL>, openai_client=AsyncOpenAI(base_url=<groq>))`.
+This was verified end-to-end against live Groq before being written down here — see Gotchas.
+
+### Gotcha: `strict_mode=False` is mandatory
+
+`@function_tool` defaults to `strict_mode=True`, which is **incompatible with this design**.
+Both failures were reproduced against live Groq:
+
+1. Strict mode forces every optional argument into the schema's `required` list. Optional
+   filters stop being optional, and the model invents values for them — an observed run passed
+   `category='food'` on a question that named no category.
+2. With a genuinely optional enum (`Optional[Category]`), pydantic emits
+   `anyOf: [Category, null]`, and Groq rejects the request outright:
+   `400 ... anyOf branches must be disambiguated via a required discriminator`.
+
+With `strict_mode=False`, `required` correctly omits optional arguments and the model supplies
+correctly-capitalized enum values. **Every tool must pass `strict_mode=False`.**
+
+### Consequence: the service is async
+
+`Runner.run_streamed()` returns an async iterator, so the API layer and the tool functions are
+`async def`. The supabase-py client is synchronous, so tool functions must not call it directly
+on the event loop — every db call goes through `asyncio.to_thread`. The `db/` layer itself stays
+plain synchronous functions, which keeps it trivial to read and test.
 
 ### Model selection
 
@@ -60,19 +93,19 @@ Next.js /api/chat  (server route: reads session, attaches JWT, proxies)
         ▼
   api/      FastAPI routes, auth dependency, SSE encoding
         ▼
-  llm/      Groq client + tool-calling loop
+  agent/    Agent definition, Groq model binding, run + event mapping
         ▼
-  tools/    JSON schemas + handlers (the LLM-facing contract)
+  tools/    @function_tool definitions (the LLM-facing contract)
         ▼
   db/       Supabase queries, RLS-scoped by the user's JWT
 ```
 
 Boundary rules, which are what keep each file small and readable:
 
-- `db/` knows nothing about LLMs. Plain functions: arguments in, rows out.
-- `tools/` knows nothing about HTTP. Turns LLM JSON arguments into `db/` calls.
-- `llm/` knows nothing about FastAPI. Yields events.
-- `api/` knows nothing about Groq. Wires request → loop → SSE.
+- `db/` knows nothing about LLMs. Plain synchronous functions: arguments in, rows out.
+- `tools/` knows nothing about HTTP. Unwraps the run context and calls `db/`.
+- `agent/` knows nothing about FastAPI. Yields events.
+- `api/` knows nothing about Groq. Wires request → run → SSE.
 
 ### Folder layout
 
@@ -86,26 +119,31 @@ agents/
     config.py                 # env -> Settings; fails loudly if a var is missing
     main.py                   # FastAPI app assembly only
     api/
-      deps.py                 # Bearer JWT -> UserContext dependency
+      deps.py                 # Bearer JWT -> str dependency
       chat.py                 # POST /chat -> SSE stream
-    llm/
-      client.py               # OpenAI SDK pointed at Groq
-      prompts.py              # system prompt
-      loop.py                 # the tool-calling loop
+    agent/
+      deps.py                 # AgentDeps: the per-request context object
+      model.py                # OpenAIChatCompletionsModel bound to Groq
+      prompts.py              # system prompt (instructions)
+      build.py                # assembles the Agent
+      run.py                  # Runner.run_streamed -> our event dicts
     tools/
-      schemas.py              # JSON schemas the LLM sees (generated from models.py)
-      handlers.py             # arg dict -> db call -> result dict
-      registry.py             # name -> (schema, handler)
+      finance.py              # the eight @function_tool functions
     db/
       client.py               # supabase-py client built from the user's JWT
+      errors.py               # NotFound, PermissionDenied
       transactions.py
       budgets.py
       profiles.py
-    models.py                 # pydantic types shared across layers
+    models.py                 # enums shared by tools/ and the frontend contract
   tests/
 ```
 
-Target: roughly twelve files, each under ~100 lines, rather than one large `main.py`.
+Target: each file under ~100 lines, rather than one large `main.py`.
+
+Note: the SDK generates tool schemas from type hints and docstrings, so the previously planned
+`tools/schemas.py` and `tools/registry.py` no longer exist. That is the main structural saving
+from adopting the SDK.
 
 ## Security model
 
@@ -171,21 +209,25 @@ would be faster but adds a migration and hides the logic. Revisit only if it mea
 
 ### Schema generation
 
-Each tool's argument schema is generated from a pydantic model in `models.py`. The JSON schema
-the LLM sees and the validation that runs are produced from the same source, so they cannot
-drift apart.
+Schemas are generated by `@function_tool` from each function's type hints and its Google-style
+docstring. The signature the code enforces and the schema the model sees are therefore the same
+artifact and cannot drift. Enum arguments use `StrEnum` types from `models.py`, which is what
+puts the exact category vocabulary in front of the model.
 
 ## Data flow
 
 1. User types in the dashboard chat panel. The frontend POSTs `{ messages: [...] }` to `/api/chat`.
 2. The Next.js route attaches the JWT and proxies to FastAPI.
-3. `deps.py` builds the RLS-scoped Supabase client.
-4. `loop.py` runs: call Groq with the messages and tool schemas. If the response contains
-   `tool_calls`, execute each handler, append the results as `role: "tool"` messages, and call
-   again. Repeat until the model returns plain text. Hard cap of **8 iterations**, then bail
-   with an explanatory message.
-5. Events stream back as SSE: `text` deltas, `tool_call` (so the UI can show "checking your
+3. `api/deps.py` extracts the JWT; `agent/deps.py` wraps an RLS-scoped Supabase client in an
+   `AgentDeps` context object.
+4. `Runner.run_streamed(agent, input=..., context=AgentDeps(...), max_turns=8)` runs the loop.
+   Tools receive the client via `RunContextWrapper`.
+5. `agent/run.py` maps the SDK's stream events onto our own vocabulary and yields them.
+6. Events stream back as SSE: `text`, `tool_call` (so the UI can show "checking your
    transactions…"), `confirm_required`, `done`, `error`.
+
+The SDK's `max_turns=8` replaces the hand-rolled iteration cap. Exceeding it raises
+`MaxTurnsExceeded`, which `agent/run.py` converts into an `error` event.
 
 ## Error handling
 
@@ -193,21 +235,26 @@ Each layer handles its own class of failure.
 
 - `db/` raises typed exceptions (`NotFound`, `PermissionDenied`). An RLS rejection surfaces as
   `PermissionDenied` — a real signal that something is wrong, not a routine outcome.
-- `tools/handlers.py` catches those and returns `{"error": "..."}` **to the model as a tool
-  result**, not as an HTTP 500. A failed tool call is data for the LLM, not a crash. The model
-  explains it to the user or tries a different approach.
-- Pydantic rejects malformed LLM arguments before they reach `db/`. That validation error also
-  returns to the model as a tool result so it can correct itself.
+- Each `@function_tool` passes a `failure_error_function` that turns any exception into a string
+  **returned to the model as the tool result**, not an HTTP 500. A failed tool call is data for
+  the LLM, not a crash. The model explains it to the user or tries a different approach.
+- The SDK validates arguments against the generated schema before the function is entered, and
+  returns schema violations to the model the same way.
 - `api/chat.py` catches only the genuinely fatal: Groq unreachable, JWT invalid or expired.
+  Because SSE headers are sent before the run starts, mid-stream failures are delivered as an
+  `error` event rather than an HTTP status.
 
 ## Testing
 
 - `db/` — integration tests against a real Supabase test user. **Includes a test proving user A
   cannot read user B's rows.** That test is the entire security model; write it first.
-- `tools/` — unit tests with a faked db layer. Assert that schemas and handlers agree.
-- `llm/loop.py` — unit tests with a scripted fake Groq client returning canned `tool_calls`.
-  No network, no flake. Covers: single tool call, multi-round, iteration cap, tool raising.
-- `api/` — FastAPI `TestClient` with a faked loop. Covers auth rejection and SSE framing.
+- `tools/` — unit tests calling the tool functions directly with a faked db layer, plus schema
+  assertions. **One test must assert that no tool's schema puts an optional argument in
+  `required`** — that is the `strict_mode` regression, and it fails as a Groq 400 at runtime.
+- `agent/run.py` — unit tests with a fake model, using the SDK's own test doubles rather than a
+  network call. Covers: single tool call, event mapping, `confirm_required` detection, and
+  `MaxTurnsExceeded`.
+- `api/` — FastAPI `TestClient` with a faked run. Covers auth rejection and SSE framing.
 
 Only `db/` requires a network. Everything else runs offline in milliseconds.
 
@@ -224,7 +271,8 @@ Deliberately excluded from this spec. Each needs its own design cycle.
 
 1. **Agent memory** — short-term (conversation window management), long-term (durable user
    facts and preferences), and semantic (embedding-based retrieval over transaction history).
-   Explicitly planned as the next phase after the copilot works. Reevaluate LangGraph here.
+   Explicitly planned as the next phase after the copilot works. Start from the SDK's
+   `Sessions` API, which already covers the short-term case.
 2. **Background workers** — cron-driven auto-categorization, budget-overrun alerts, recurring
    transaction materialization, weekly summaries. Requires the service-role key and a separate
    auth path.
@@ -232,13 +280,28 @@ Deliberately excluded from this spec. Each needs its own design cycle.
 4. **Raw SQL escape hatch** — a guarded read-only `run_analytics_sql` tool. Add only if the
    fixed tools prove insufficient.
 
+## Resolved during design
+
+- **Groq model**: `openai/gpt-oss-120b`, confirmed present on the live models endpoint and
+  confirmed to perform tool calling end-to-end. Note the `openai/` prefix — the bare
+  `gpt-oss-120b` does not exist and 404s. Stored in `GROQ_MODEL`, never hardcoded.
+- **Vocabulary**: `type` is `expense`/`income`; `recurring_interval` is
+  `none`/`daily`/`weekly`/`monthly`/`yearly`; categories are as listed in the frontend. All read
+  from the frontend source, which is the only place these are defined — **the database columns
+  are plain `string` with no CHECK constraints**, so nothing in Postgres rejects an invented
+  category. The enums in `models.py` are the only guard.
+- **supabase-py client construction**: both `apiKey` and `Authorization` headers must be passed
+  explicitly. Verified: `Authorization` alone returns 401 from the Supabase gateway, and
+  `Client.create()` skips injecting `apiKey` whenever the caller supplies their own
+  `Authorization` header.
+
 ## Open items for implementation
 
-- Confirm the Groq model ID from the live models endpoint; verify tool-calling support.
-- Confirm `transactions.type` allowed values (`income` / `expense`) and
-  `recurring_interval` allowed values against the live database before writing the enums
-  in `models.py`. The generated TypeScript types say `string`, which is not specific enough.
 - Read the relevant guide under `node_modules/next/dist/docs/` before writing the Next.js
   route handler. This Next.js version has breaking changes from common knowledge (see AGENTS.md).
 - Root `memory.md` claims Vitest is configured with `tests/utils.test.ts` and `tests/proxy.test.ts`.
   Neither the dependency, the test script, nor the files exist. Treat that file as aspirational.
+- `EXPENSE_CATEGORIES` is already duplicated in `components/dashboard/transaction-modal.tsx` and
+  `app/dashboard/budgets/page.tsx`. `models.py` becomes a third copy in a second language. Not
+  addressed here, but it is a live drift risk: if the lists diverge, the agent and the budgets
+  page silently disagree about what a category is.
