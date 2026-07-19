@@ -7,6 +7,13 @@ SmartWealth is a modern, high-performance web application designed for personal 
 
 ---
 
+## UI Preview
+
+### Session Verification / Loading Screen
+![Welcome to your records - Verifying session](./public/loading_screenshot.png)
+
+---
+
 ## Key Features
 
 1. **Next.js 16 Partial Prerendering (PPR):** Page layout shells (Sidebar, navigation, loading skeletons) are statically pre-rendered and served instantly, while dynamic database content is streamed asynchronously using React Server Components wrapped in `<Suspense>` boundaries.
@@ -58,6 +65,14 @@ cd agents
 uv run uvicorn agent_service.main:app --reload
 ```
 The backend API will run on [http://127.0.0.1:8000](http://127.0.0.1:8000).
+
+### 4. Git Tracking (Excluding memory and progress files)
+If `memory.md` or `progress.md` files were previously tracked on GitHub before adding them to `.gitignore`, run the following commands to untrack them (keeping them locally on your machine):
+```bash
+git rm --cached memory.md progress.md agents/memory.md agents/progress.md
+git commit -m "Stop tracking memory and progress files"
+git push origin main
+```
 
 ---
 
