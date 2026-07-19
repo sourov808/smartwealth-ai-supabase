@@ -11,9 +11,13 @@ LLM reads and writes their Supabase data through eight typed tools.
 ## Run it
 
 ```bash
-uv run fastapi dev src/agent_service/main.py     # http://127.0.0.1:8000
-curl localhost:8000/health                       # {"status":"ok"}
+cd agents
+uv run uvicorn agent_service.main:app --reload    # http://127.0.0.1:8000
+curl localhost:8000/health                        # {"status":"ok"}
 ```
+
+(`fastapi dev` would also work but needs `uv add "fastapi[standard]"` first — the
+CLI is not part of the base `fastapi` package. uvicorn is already installed.)
 
 `POST /chat` takes `{"messages": [{"role": "user", "content": "..."}]}` plus an
 `Authorization: Bearer <supabase-jwt>` header, and streams SSE events:
