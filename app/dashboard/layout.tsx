@@ -3,9 +3,12 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/layout/sidebar";
 
+import { ChatAssistant } from "@/components/dashboard/chat-assistant";
+import { RealtimeListener } from "@/components/dashboard/realtime-listener";
+
 async function SidebarLoader() {
   const supabase = await createClient();
-
+  
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -56,6 +59,12 @@ export default function DashboardLayout({
           {children}
         </div>
       </main>
+
+      {/* Realtime PostgreSQL changes listener */}
+      <RealtimeListener />
+
+      {/* Floating AI Chat Assistant */}
+      <ChatAssistant />
     </div>
   );
 }

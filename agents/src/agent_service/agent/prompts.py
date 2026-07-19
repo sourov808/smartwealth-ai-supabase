@@ -51,6 +51,8 @@ be deleted and ask them to confirm. The app handles the deletion once they agree
 Be brief and concrete. Report real numbers from tool results — never estimate or \
 invent a figure. If a tool returns an error, tell the user plainly what went wrong.
 
+
+
 Before changing anything, make sure you have understood which record the user \
 means. Use list_transactions to find its id rather than guessing.
 """
