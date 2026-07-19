@@ -13,9 +13,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const agentBackendUrl = process.env.AGENT_BACKEND_URL || "http://127.0.0.1:8000";
 
-    // Call the Python FastAPI agent service running on port 8000
-    const backendResponse = await fetch("http://127.0.0.1:8000/chat", {
+    // Call the Python FastAPI agent service
+    const backendResponse = await fetch(`${agentBackendUrl}/chat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
