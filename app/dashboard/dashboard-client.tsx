@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { GmailConnection } from "@/components/dashboard/gmail-connection";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { TransactionModal } from "@/components/dashboard/transaction-modal";
 import {
@@ -136,6 +137,10 @@ export function DashboardClient({
           subtitle="Spent this month"
         />
       </div>
+
+      {/* Gmail connection. The assistant can read email once this is connected,
+          and OAuth consent can only happen here — the agent cannot grant it. */}
+      <GmailConnection />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Recent Transactions List Feed */}

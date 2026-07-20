@@ -3,7 +3,7 @@
 The Agents SDK emits spans for every run, tool call, and model request. By
 default it ships them to OpenAI's own tracing backend, which needs an OpenAI API
 key this service does not have — hence the `set_tracing_disabled(True)` that
-`agent/model.py` applies at import time.
+`agents.py` applies at import time.
 
 This module reverses that when LangSmith is configured. `set_trace_processors`
 *replaces* the processor list rather than appending to it, so enabling LangSmith

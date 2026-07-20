@@ -106,7 +106,43 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      // Third-party OAuth credentials. Hand-written rather than generated:
+      // `user_integrations` has no RLS policies at all, so PostgREST cannot
+      // reach the table and these security-definer functions are the only door.
+      // See docs/migrations/2026-07-20-user-integrations.sql.
+      //
+      // Regenerating types from the Supabase CLI will drop these — re-add them.
+      integration_status: {
+        Args: { p_provider: string }
+        Returns: {
+          status: string
+          account_email: string | null
+          scopes: string[]
+          connected_at: string
+          last_error: string | null
+        }[]
+      }
+      // Returns ciphertext. Useless without INTEGRATION_ENCRYPTION_KEY, which
+      // lives in the server environment and never in the browser.
+      integration_access_token: {
+        Args: { p_provider: string }
+        Returns: string | null
+      }
+      store_integration_credentials: {
+        Args: {
+          p_provider: string
+          p_account_email: string | null
+          p_refresh_token: string | null
+          p_access_token: string | null
+          p_expires_at: string | null
+          p_scopes: string[]
+        }
+        Returns: undefined
+      }
+      disconnect_integration: {
+        Args: { p_provider: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
