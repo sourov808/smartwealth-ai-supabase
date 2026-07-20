@@ -19,7 +19,9 @@ from agent_service.config import Settings
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 # The SDK's built-in tracing uploads to OpenAI and needs an OpenAI API key, which
-# this service does not have. Tracing is handled by other tooling.
+# this service does not have. Off by default so that importing this module is
+# never enough to leak spans. `agent/tracing.py` re-enables it at startup when
+# LangSmith is configured, replacing the OpenAI uploader outright.
 set_tracing_disabled(True)
 
 

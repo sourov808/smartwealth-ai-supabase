@@ -3,24 +3,19 @@
 Each one is a thin adapter: unwrap the context, call `db/`, return a plain dict.
 No HTTP, no LLM API details.
 
-Two rules hold for every tool in this file.
+Every tool is built with the `tool` decorator from `base.py`, which is where
+`strict_mode=False` and the error policy are explained — both are load-bearing.
 
-1. `strict_mode=False` is MANDATORY. The SDK defaults to True, which breaks this
-   design two ways, both verified against live Groq:
-     - It forces optional arguments into the schema's `required` list, so the
-       model invents values for filters the user never mentioned.
-     - `Optional[SomeEnum]` becomes `anyOf: [Enum, null]`, which Groq rejects:
-       "400 ... anyOf branches must be disambiguated via a required discriminator"
-
-2. Every db call goes through `asyncio.to_thread`. supabase-py is synchronous;
-   calling it directly from these async functions would block the event loop.
+The rule `base.py` cannot enforce: every db call goes through `asyncio.to_thread`.
+supabase-py is synchronous, and calling it directly from these async functions
+would block the event loop.
 """
 
 import asyncio
 from collections import defaultdict
 from typing import Optional
 
-from agents import RunContextWrapper, function_tool
+from agents import RunContextWrapper
 
 from agent_service.agent.deps import AgentDeps
 from agent_service.db import budgets as bg
@@ -33,18 +28,7 @@ from agent_service.models import (
     TransactionType,
     check_category_matches_type,
 )
-
-
-def _tool_error(ctx: RunContextWrapper, error: Exception) -> str:
-    """Hand failures to the model instead of raising.
-
-    A failed tool call is data the model can act on — it can explain the problem
-    or try a different approach. Raising would 500 the request instead.
-    """
-    return f"The tool failed: {type(error).__name__}: {error}"
-
-
-tool = function_tool(strict_mode=False, failure_error_function=_tool_error)
+from agent_service.tools.base import tool
 
 
 @tool

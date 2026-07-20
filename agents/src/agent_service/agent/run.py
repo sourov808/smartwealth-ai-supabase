@@ -19,6 +19,7 @@ from agents import Agent, ItemHelpers, Runner
 from agents.exceptions import MaxTurnsExceeded
 
 from agent_service.agent.deps import AgentDeps
+from agent_service.agent.window import trim
 
 MAX_TURNS = 8
 
@@ -31,6 +32,10 @@ async def run_agent(
     deps: AgentDeps,
     input: str | list,
 ) -> AsyncIterator[Event]:
+    # Short-term memory. A string input is a single turn and needs no window.
+    if isinstance(input, list):
+        input = trim(input)
+
     result = Runner.run_streamed(agent, input=input, context=deps, max_turns=MAX_TURNS)
 
     try:

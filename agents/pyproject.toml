@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.139.0",
+    "langsmith[openai-agents]>=0.10.6",
     "openai>=2.45.0",
     "openai-agents>=0.18.2",
     "pydantic>=2",

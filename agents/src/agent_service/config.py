@@ -17,6 +17,11 @@ class Settings:
     supabase_anon_key: str
 
 
+def load_env() -> None:
+    """Real env vars win over the file, so deployment can override it."""
+    load_dotenv(ENV_FILE, override=False)
+
+
 def _require(name: str) -> str:
     value = os.environ.get(name, "").strip()
     if not value:
@@ -27,8 +32,7 @@ def _require(name: str) -> str:
 
 
 def load_settings() -> Settings:
-    # Real env vars win over the file, so deployment can override it.
-    load_dotenv(ENV_FILE, override=False)
+    load_env()
     return Settings(
         groq_api_key=_require("GROQ_API_KEY"),
         groq_model=_require("GROQ_MODEL"),
