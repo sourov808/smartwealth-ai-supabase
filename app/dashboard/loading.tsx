@@ -1,78 +1,73 @@
+import { Skeleton, SkeletonText, SkeletonRow } from "@/components/ui/skeleton";
+
 export default function DashboardLoading() {
   return (
-    <div className="space-y-8 animate-pulse">
-      {/* Header Skeleton */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-section">
+      {/* Masthead */}
+      <div className="flex flex-col gap-4 border-b border-rule pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
-          <div className="h-8 w-48 bg-zinc-900 rounded-lg" />
-          <div className="h-4 w-72 bg-zinc-900/60 rounded" />
+          <Skeleton className="h-8 w-40" />
+          <SkeletonText width="w-32" />
         </div>
-        <div className="h-10 w-36 bg-zinc-900 rounded-lg" />
+        <Skeleton className="h-8 w-36" />
       </div>
 
-      {/* Stats Cards Skeleton Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="border border-zinc-900 bg-zinc-900/30 rounded-2xl p-6 h-28 flex flex-col justify-between"
-          >
-            <div className="flex justify-between items-start">
-              <div className="space-y-2.5">
-                <div className="h-3.5 w-24 bg-zinc-900 rounded" />
-                <div className="h-7 w-32 bg-zinc-900 rounded-lg" />
-              </div>
-              <div className="h-10 w-10 bg-zinc-900 rounded-xl" />
+      {/* Hero figure + supporting row */}
+      <div className="space-y-block">
+        <div className="space-y-2">
+          <SkeletonText width="w-24" className="h-2.5" />
+          <Skeleton className="h-14 w-64" />
+          <SkeletonText width="w-48" className="h-2.5" />
+        </div>
+
+        <div className="grid grid-cols-1 gap-8 border-t border-rule pt-block sm:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="space-y-2">
+              <SkeletonText width="w-24" className="h-2.5" />
+              <Skeleton className="h-8 w-32" />
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Recent Transactions List Feed Skeleton */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="h-6 w-36 bg-zinc-900 rounded" />
-            <div className="h-4 w-16 bg-zinc-900/60 rounded" />
+      <div className="grid gap-12 lg:grid-cols-3">
+        {/* Recent */}
+        <div className="space-y-4 lg:col-span-2">
+          <div className="flex items-baseline justify-between gap-4 border-b border-rule pb-2">
+            <SkeletonText width="w-20" className="h-2.5" />
+            <SkeletonText width="w-14" className="h-2.5" />
           </div>
-
-          <div className="bg-zinc-900/30 border border-zinc-900 rounded-2xl p-6 space-y-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="flex items-center justify-between pt-4 first:pt-0 border-t first:border-t-0 border-zinc-900/50">
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 bg-zinc-900 rounded-lg" />
-                  <div className="space-y-2">
-                    <div className="h-4 w-28 bg-zinc-900 rounded" />
-                    <div className="h-3 w-16 bg-zinc-900/50 rounded" />
-                  </div>
-                </div>
-                <div className="h-5 w-16 bg-zinc-900 rounded" />
-              </div>
+          <div className="divide-y divide-rule">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <SkeletonRow key={i} />
             ))}
           </div>
         </div>
 
-        {/* Budgets Tracker Summary Skeleton */}
+        {/* Budgets */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="h-6 w-32 bg-zinc-900 rounded" />
-            <div className="h-4 w-16 bg-zinc-900/60 rounded" />
+          <div className="flex items-baseline justify-between gap-4 border-b border-rule pb-2">
+            <SkeletonText width="w-20" className="h-2.5" />
+            <SkeletonText width="w-14" className="h-2.5" />
           </div>
-
-          <div className="bg-zinc-900/30 border border-zinc-900 rounded-2xl p-6 space-y-5">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="space-y-2.5">
-                <div className="flex justify-between">
-                  <div className="h-3 w-16 bg-zinc-900 rounded" />
-                  <div className="h-3 w-20 bg-zinc-900/60 rounded" />
+          <div className="space-y-5">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="space-y-2">
+                <div className="flex items-baseline justify-between gap-3">
+                  <SkeletonText width="w-20" className="h-2.5" />
+                  <SkeletonText width="w-24" className="h-2.5" />
                 </div>
-                <div className="h-2 w-full bg-zinc-955 bg-zinc-950 rounded-full overflow-hidden">
-                  <div className="h-full w-2/3 bg-zinc-900 rounded-full" />
-                </div>
+                <Skeleton className="h-[3px] w-full rounded-none" />
               </div>
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Gmail row */}
+      <div className="flex items-center justify-between gap-3 border-t border-rule pt-4">
+        <SkeletonText width="w-56" />
+        <Skeleton className="h-7 w-24" />
       </div>
     </div>
   );

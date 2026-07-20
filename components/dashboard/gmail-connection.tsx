@@ -2,9 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "motion/react";
-import { Mail, Loader2, CheckCircle2, AlertTriangle, Unplug } from "lucide-react";
+import { Mail, Loader2, Unplug } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
+import { Badge } from "@/components/ui/badge";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { fadeUp } from "@/lib/motion";
 
 interface IntegrationStatus {
   status: string;
@@ -54,8 +57,8 @@ export function GmailConnection() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-neutral-200 p-4 text-sm text-neutral-500 dark:border-neutral-800">
-        <Loader2 className="h-4 w-4 animate-spin" />
+      <div className="flex items-center gap-2 border-t border-rule pt-4 text-sm text-ink-faint">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
         Checking Gmail connection…
       </div>
     );
@@ -66,65 +69,58 @@ export function GmailConnection() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800"
+      variants={fadeUp}
+      initial="hidden"
+      animate="visible"
+      className="flex flex-wrap items-center justify-between gap-3 border-t border-rule pt-4 text-sm"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <Mail className="mt-0.5 h-5 w-5 text-neutral-500" />
-          <div>
-            <p className="font-medium">Gmail</p>
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <Mail className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={1.5} />
+        <span className="text-ink">Gmail</span>
 
-            {connected && (
-              <p className="flex items-center gap-1.5 text-sm text-neutral-500">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                {status?.account_email ?? "Connected"}
-              </p>
-            )}
+        {connected && (
+          <>
+            <Badge tone="pos">Connected</Badge>
+            <span className="truncate text-ink-faint">
+              {status?.account_email ?? "Connected"}
+            </span>
+          </>
+        )}
 
-            {needsReconnect && (
-              <p className="flex items-center gap-1.5 text-sm text-amber-600">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Access expired — reconnect to keep scanning receipts
-              </p>
-            )}
+        {needsReconnect && (
+          <>
+            <Badge tone="warn">Expired</Badge>
+            <span className="text-warn">
+              Reconnect to keep scanning receipts
+            </span>
+          </>
+        )}
 
-            {!connected && !needsReconnect && (
-              <p className="text-sm text-neutral-500">
-                Find receipts and payments in your inbox automatically
-              </p>
-            )}
-          </div>
-        </div>
-
-        {connected ? (
-          <button
-            onClick={disconnect}
-            disabled={working}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-neutral-200 px-3 py-1.5 text-sm hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-800 dark:hover:bg-neutral-900"
-          >
-            {working ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Unplug className="h-3.5 w-3.5" />
-            )}
-            Disconnect
-          </button>
-        ) : (
-          <a
-            href="/api/integrations/gmail/connect"
-            className="shrink-0 rounded-lg bg-neutral-900 px-3 py-1.5 text-sm text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900"
-          >
-            {needsReconnect ? "Reconnect" : "Connect"}
-          </a>
+        {!connected && !needsReconnect && (
+          <span className="text-ink-faint">
+            Find receipts and payments in your inbox automatically
+          </span>
         )}
       </div>
 
-      {connected && (
-        <p className="mt-3 border-t border-neutral-100 pt-3 text-xs text-neutral-400 dark:border-neutral-900">
-          Read-only access. This app can never send, change, or delete your mail.
-        </p>
+      {connected ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={disconnect}
+          disabled={working}
+        >
+          {working ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+          ) : (
+            <Unplug className="h-3.5 w-3.5" strokeWidth={1.5} />
+          )}
+          Disconnect
+        </Button>
+      ) : (
+        <ButtonLink variant="ghost" size="sm" href="/api/integrations/gmail/connect">
+          {needsReconnect ? "Reconnect" : "Connect"}
+        </ButtonLink>
       )}
     </motion.div>
   );

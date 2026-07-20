@@ -1,18 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  BarChart3,
-  PieChart as PieIcon,
-  LineChart as LineIcon,
-  TrendingUp,
-  TrendingDown,
-  Percent,
-  Calendar,
-  DollarSign,
-  ChevronDown,
-  Info,
-} from "lucide-react";
+import { motion } from "motion/react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -27,7 +16,14 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { formatCurrency } from "@/lib/utils";
+
+import { Surface } from "@/components/ui/surface";
+import { Section, PageHeader } from "@/components/ui/stack";
+import { Figure } from "@/components/ui/figure";
+import { SelectField } from "@/components/ui/field";
+import { Empty } from "@/components/ui/empty";
+import { fadeUp, stagger } from "@/lib/motion";
+import { formatCurrency, formatCompact } from "@/lib/utils";
 
 interface Transaction {
   amount: number;
@@ -53,23 +49,25 @@ interface CustomTooltipProps {
 const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-popover border border-border rounded-lg p-3 shadow-md text-xs space-y-1">
-        <p className="font-semibold text-foreground mb-1">{label}</p>
-        {payload.map((entry, index) => (
-          <div key={index} className="flex items-center gap-2 justify-between">
-            <span className="flex items-center gap-1.5 text-stone-500 dark:text-stone-400 font-medium">
-              <span
-                className="w-2 h-2 rounded-full inline-block"
-                style={{ backgroundColor: entry.color }}
-              />
-              {entry.name}:
-            </span>
-            <span className="font-bold text-foreground">
-              {formatCurrency(Number(entry.value))}
-            </span>
-          </div>
-        ))}
-      </div>
+      <Surface variant="raised" className="px-3 py-2">
+        {label && <p className="eyebrow mb-1.5">{label}</p>}
+        <div className="space-y-1">
+          {payload.map((entry, index) => (
+            <div key={index} className="flex items-center justify-between gap-4">
+              <span className="flex items-center gap-1.5 text-xs text-ink-muted">
+                <span
+                  className="inline-block h-2 w-2 shrink-0"
+                  style={{ backgroundColor: entry.color }}
+                />
+                {entry.name}
+              </span>
+              <span className="tabular font-mono text-xs text-ink">
+                {formatCurrency(Number(entry.value))}
+              </span>
+            </div>
+          ))}
+        </div>
+      </Surface>
     );
   }
   return null;
@@ -83,25 +81,42 @@ const CustomPieTooltip = ({ active, payload, totalExpenseVal = 0 }: CustomPieToo
   if (active && payload && payload.length) {
     const data = payload[0].payload as { name: string; value: number };
     return (
-      <div className="bg-popover border border-border rounded-lg p-3 shadow-md text-xs space-y-1">
-        <p className="font-semibold text-foreground mb-1">{data.name}</p>
-        <div className="flex items-center gap-2 justify-between">
-          <span className="text-stone-500 dark:text-stone-400">Total Spent:</span>
-          <span className="font-bold text-foreground">{formatCurrency(data.value)}</span>
-        </div>
-        {totalExpenseVal > 0 && (
-          <div className="flex items-center gap-2 justify-between">
-            <span className="text-stone-500 dark:text-stone-400">Percentage:</span>
-            <span className="font-bold text-foreground">
-              {((data.value / totalExpenseVal) * 100).toFixed(1)}%
+      <Surface variant="raised" className="px-3 py-2">
+        <p className="eyebrow mb-1.5">{data.name}</p>
+        <div className="space-y-1">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-xs text-ink-muted">Total Spent</span>
+            <span className="tabular font-mono text-xs text-ink">
+              {formatCurrency(data.value)}
             </span>
           </div>
-        )}
-      </div>
+          {totalExpenseVal > 0 && (
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-xs text-ink-muted">Percentage</span>
+              <span className="tabular font-mono text-xs text-ink">
+                {((data.value / totalExpenseVal) * 100).toFixed(1)}%
+              </span>
+            </div>
+          )}
+        </div>
+      </Surface>
     );
   }
   return null;
 };
+
+const AXIS_TICK = { fill: "var(--ink-faint)", fontSize: 11 };
+
+const SERIES = [
+  "var(--series-1)",
+  "var(--series-2)",
+  "var(--series-3)",
+  "var(--series-4)",
+  "var(--series-5)",
+  "var(--series-6)",
+  "var(--series-7)",
+  "var(--series-8)",
+];
 
 type TimeRange = "current_month" | "last_3_months" | "last_6_months" | "ytd" | "all";
 
@@ -233,8 +248,8 @@ export function AnalyticsClient({ initialTransactions }: AnalyticsClientProps) {
 
   // 3. Cash Flow Summary (Income vs Expense bar chart)
   const cashFlowSummary = [
-    { name: "Income", amount: rangeIncome, fill: "var(--color-sage)" },
-    { name: "Expenses", amount: rangeExpense, fill: "var(--color-rust)" },
+    { name: "Income", amount: rangeIncome, fill: "var(--pos)" },
+    { name: "Expenses", amount: rangeExpense, fill: "var(--neg)" },
   ];
 
   // 4. Category breakdown pie chart
@@ -252,176 +267,110 @@ export function AnalyticsClient({ initialTransactions }: AnalyticsClientProps) {
     }))
     .sort((a, b) => b.value - a.value);
 
-  const COLORS = [
-    "var(--color-amber-brand)",
-    "var(--color-sage)",
-    "var(--color-rust)",
-    "#8b5cf6",
-    "#3b82f6",
-    "#f97316",
-    "#14b8a6",
-    "#ec4899",
-  ];
-
   const totalExpenseVal = categoryPieData.reduce((sum, item) => sum + item.value, 0);
   const isDataEmpty = filteredTxs.length === 0;
 
   return (
-    <div className="space-y-8">
-      {/* Title Header with Range Selector */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2.5">
-            <BarChart3 className="h-7 w-7 text-foreground stroke-[1.5]" />
-            <span>Financial Analytics</span>
-          </h1>
-          <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
-            Analyze your income, expenses, savings rate, and category distribution.
-          </p>
-        </div>
-
-        {/* Minimalist Range Selection Dropdown */}
-        <div className="relative inline-block w-full sm:w-auto">
-          <select
-            value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value as TimeRange)}
-            className="w-full sm:w-auto bg-card text-foreground border border-border hover:border-stone-300 dark:hover:border-stone-700 rounded-lg py-2 pl-3 pr-10 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600 transition-all cursor-pointer appearance-none shadow-xs"
-          >
-            <option value="current_month">Current Month</option>
-            <option value="last_3_months">Last 3 Months</option>
-            <option value="last_6_months">Last 6 Months</option>
-            <option value="ytd">Year to Date (YTD)</option>
-            <option value="all">All Time</option>
-          </select>
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400 pointer-events-none stroke-[1.5]" />
-        </div>
-      </div>
+    <div className="space-y-10">
+      <PageHeader
+        title="Analytics"
+        description="Analyze your income, expenses, savings rate, and category distribution."
+      >
+        <SelectField
+          label="Time range"
+          value={timeRange}
+          onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+          className="sm:w-52"
+        >
+          <option value="current_month">Current Month</option>
+          <option value="last_3_months">Last 3 Months</option>
+          <option value="last_6_months">Last 6 Months</option>
+          <option value="ytd">Year to Date (YTD)</option>
+          <option value="all">All Time</option>
+        </SelectField>
+      </PageHeader>
 
       {isDataEmpty ? (
-        <div className="bg-card border border-border rounded-xl p-16 text-center text-stone-500 text-sm flex flex-col items-center justify-center gap-3">
-          <Info className="h-8 w-8 text-stone-400 stroke-[1.5]" />
-          <p>No transactions registered for the selected time range.</p>
-          <p className="text-xs text-stone-400/80">Add transactions under the ledger to build analytical graphs.</p>
-          <p className="text-xs text-stone-400/80">Add transactions under the ledger to build analytical graphs.</p>
-        </div>
+        <Empty
+          title="Nothing to analyze yet"
+          description="No transactions registered for the selected time range. Add transactions under the ledger to build analytical graphs."
+        />
       ) : (
-        <div className="space-y-8">
-          {/* KPI Summary Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Card 1: Income */}
-            <div className="bg-card border border-border rounded-xl p-6 flex flex-col justify-between shadow-xs relative overflow-hidden group">
-              <div className="space-y-1.5">
-                <span className="text-xs text-stone-400 dark:text-stone-500 font-bold uppercase tracking-wider">
-                  Total Income
-                </span>
-                <h3 className="text-2xl font-extrabold text-foreground tracking-tight">
-                  {formatCurrency(rangeIncome)}
-                </h3>
-              </div>
-              <p className="text-[10px] text-stone-400 dark:text-stone-500 font-medium mt-4 flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                Active range total inflows
-              </p>
-              <div className="absolute right-4 top-6 p-2 rounded-lg bg-sage/10 text-sage">
-                <TrendingUp className="h-5 w-5 stroke-[1.5]" />
-              </div>
-            </div>
+        <div className="space-y-10">
+          {/* KPI band — one ruled row, no boxes */}
+          <motion.div
+            variants={stagger}
+            initial="hidden"
+            animate="visible"
+            className="grid grid-cols-2 gap-8 border-b border-rule pb-8 lg:grid-cols-4"
+          >
+            <Figure
+              label="Total Income"
+              value={rangeIncome}
+              hint="Active range total inflows"
+              tone="pos"
+            />
+            <Figure
+              label="Total Expenses"
+              value={rangeExpense}
+              hint="Active range total outflows"
+              tone="neg"
+            />
+            <Figure
+              label="Net Savings"
+              value={netSavings}
+              hint="Income minus expenses"
+              tone={netSavings >= 0 ? "pos" : "neg"}
+            />
+            <Figure
+              label="Savings Rate"
+              value={`${savingsRate.toFixed(1)}%`}
+              hint="Percentage of income saved"
+            />
+          </motion.div>
 
-            {/* Card 2: Expenses */}
-            <div className="bg-card border border-border rounded-xl p-6 flex flex-col justify-between shadow-xs relative overflow-hidden group">
-              <div className="space-y-1.5">
-                <span className="text-xs text-stone-400 dark:text-stone-500 font-bold uppercase tracking-wider">
-                  Total Expenses
-                </span>
-                <h3 className="text-2xl font-extrabold text-foreground tracking-tight">
-                  {formatCurrency(rangeExpense)}
-                </h3>
-              </div>
-              <p className="text-[10px] text-stone-400 dark:text-stone-500 font-medium mt-4 flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                Active range total outflows
-              </p>
-              <div className="absolute right-4 top-6 p-2 rounded-lg bg-rust/10 text-rust">
-                <TrendingDown className="h-5 w-5 stroke-[1.5]" />
-              </div>
-            </div>
-
-            {/* Card 3: Net Savings */}
-            <div className="bg-card border border-border rounded-xl p-6 flex flex-col justify-between shadow-xs relative overflow-hidden group">
-              <div className="space-y-1.5">
-                <span className="text-xs text-stone-400 dark:text-stone-500 font-bold uppercase tracking-wider">
-                  Net Savings
-                </span>
-                <h3
-                  className={`text-2xl font-extrabold tracking-tight ${
-                    netSavings >= 0 ? "text-sage" : "text-rust"
-                  }`}
-                >
-                  {formatCurrency(netSavings)}
-                </h3>
-              </div>
-              <p className="text-[10px] text-stone-400 dark:text-stone-500 font-medium mt-4 flex items-center gap-1">
-                <DollarSign className="h-3 w-3" />
-                Income minus expenses
-              </p>
-              <div className={`absolute right-4 top-6 p-2 rounded-lg ${
-                netSavings >= 0 ? "bg-sage/10 text-sage" : "bg-rust/10 text-rust"
-              }`}>
-                <DollarSign className="h-5 w-5 stroke-[1.5]" />
-              </div>
-            </div>
-
-            {/* Card 4: Savings Rate */}
-            <div className="bg-card border border-border rounded-xl p-6 flex flex-col justify-between shadow-xs relative overflow-hidden group">
-              <div className="space-y-1.5">
-                <span className="text-xs text-stone-400 dark:text-stone-500 font-bold uppercase tracking-wider">
-                  Savings Rate
-                </span>
-                <h3 className="text-2xl font-extrabold text-foreground tracking-tight">
-                  {savingsRate.toFixed(1)}%
-                </h3>
-              </div>
-              <p className="text-[10px] text-stone-400 dark:text-stone-500 font-medium mt-4 flex items-center gap-1">
-                <Percent className="h-3 w-3" />
-                Percentage of income saved
-              </p>
-              <div className="absolute right-4 top-6 p-2 rounded-lg bg-amber-brand/10 text-amber-brand">
-                <Percent className="h-5 w-5 stroke-[1.5]" />
-              </div>
-            </div>
-          </div>
-
-          {/* Main Area Chart: Daily / Monthly Trend */}
-          <div className="bg-card border border-border rounded-xl p-6 space-y-4 shadow-xs">
-            <div className="flex items-center gap-2">
-              <LineIcon className="h-5 w-5 text-foreground stroke-[1.5]" />
-              <h2 className="text-lg font-bold text-foreground">Cash Flow Over Time</h2>
-            </div>
-            <div className="h-[320px] w-full">
+          {/* Trend over time */}
+          <Section label="cash flow">
+            <motion.div
+              variants={fadeUp}
+              initial="hidden"
+              animate="visible"
+              className="h-80 w-full"
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={trendData}
-                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  margin={{ top: 10, right: 10, left: -12, bottom: 0 }}
                 >
                   <defs>
                     <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-sage)" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="var(--color-sage)" stopOpacity={0} />
+                      <stop offset="5%" stopColor="var(--pos)" stopOpacity={0.12} />
+                      <stop offset="95%" stopColor="var(--pos)" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-rust)" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="var(--color-rust)" stopOpacity={0} />
+                      <stop offset="5%" stopColor="var(--neg)" stopOpacity={0.12} />
+                      <stop offset="95%" stopColor="var(--neg)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.4} vertical={false} />
-                  <XAxis dataKey="label" stroke="var(--foreground)" opacity={0.6} fontSize={11} tickLine={false} />
-                  <YAxis stroke="var(--foreground)" opacity={0.6} fontSize={11} tickLine={false} />
+                  <CartesianGrid strokeDasharray="0" stroke="var(--rule)" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={AXIS_TICK}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={AXIS_TICK}
+                    tickFormatter={(v) => formatCompact(v)}
+                  />
                   <Tooltip content={<CustomTooltip />} />
                   <Area
                     type="monotone"
                     name="Income"
                     dataKey="Income"
-                    stroke="var(--color-sage)"
+                    stroke="var(--pos)"
                     strokeWidth={1.5}
                     fillOpacity={1}
                     fill="url(#incomeGrad)"
@@ -430,34 +379,40 @@ export function AnalyticsClient({ initialTransactions }: AnalyticsClientProps) {
                     type="monotone"
                     name="Expenses"
                     dataKey="Expenses"
-                    stroke="var(--color-rust)"
+                    stroke="var(--neg)"
                     strokeWidth={1.5}
                     fillOpacity={1}
                     fill="url(#expenseGrad)"
                   />
                 </AreaChart>
               </ResponsiveContainer>
-            </div>
-          </div>
+            </motion.div>
+          </Section>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Cash Flow Income vs Expense Bar Chart */}
-            <div className="bg-card border border-border rounded-xl p-6 space-y-4 shadow-xs">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-foreground stroke-[1.5]" />
-                <h2 className="text-lg font-bold text-foreground">Inflow vs Outflow Contrast</h2>
-              </div>
-              <div className="h-[280px] w-full flex items-center justify-center">
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+            {/* Inflow vs outflow */}
+            <Section label="inflow vs outflow">
+              <div className="h-70 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={cashFlowSummary} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.4} vertical={false} />
-                    <XAxis dataKey="name" stroke="var(--foreground)" opacity={0.6} fontSize={12} tickLine={false} />
-                    <YAxis stroke="var(--foreground)" opacity={0.6} fontSize={12} tickLine={false} />
+                  <BarChart data={cashFlowSummary} margin={{ top: 20, right: 10, left: -12, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="0" stroke="var(--rule)" vertical={false} />
+                    <XAxis
+                      dataKey="name"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={AXIS_TICK}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={AXIS_TICK}
+                      tickFormatter={(v) => formatCompact(v)}
+                    />
                     <Tooltip
-                      cursor={{ fill: "rgba(0,0,0,0.02)" }}
+                      cursor={{ fill: "var(--paper-sunken)" }}
                       content={<CustomTooltip />}
                     />
-                    <Bar dataKey="amount" name="Total Amount" radius={[6, 6, 0, 0]} maxBarSize={50}>
+                    <Bar dataKey="amount" name="Total Amount" radius={[2, 2, 0, 0]} maxBarSize={44}>
                       {cashFlowSummary.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
@@ -465,35 +420,34 @@ export function AnalyticsClient({ initialTransactions }: AnalyticsClientProps) {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </div>
+            </Section>
 
-            {/* Expenses Category Distribution Pie Chart with Side Panel */}
-            <div className="bg-card border border-border rounded-xl p-6 space-y-4 shadow-xs">
-              <div className="flex items-center gap-2">
-                <PieIcon className="h-5 w-5 text-foreground stroke-[1.5]" />
-                <h2 className="text-lg font-bold text-foreground">Expense Distribution</h2>
-              </div>
+            {/* Category distribution */}
+            <Section label="expense distribution">
               {categoryPieData.length === 0 ? (
-                <div className="h-[280px] flex items-center justify-center text-stone-500 text-sm">
-                  No expense records found to compile breakdown.
-                </div>
+                <Empty
+                  title="No expenses recorded"
+                  description="There are no expense records in this range to compile a breakdown."
+                />
               ) : (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-6 min-h-[280px]">
-                  {/* Left: Recharts Pie */}
-                  <div className="h-[220px] w-[220px] flex-shrink-0 flex items-center justify-center">
+                <div className="flex min-h-70 flex-col items-center justify-between gap-6 sm:flex-row">
+                  {/* Donut */}
+                  <div className="flex h-55 w-55 shrink-0 items-center justify-center">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={categoryPieData}
                           cx="50%"
                           cy="50%"
-                          innerRadius={60}
-                          outerRadius={85}
-                          paddingAngle={4}
+                          innerRadius={62}
+                          outerRadius={88}
+                          paddingAngle={2}
                           dataKey="value"
+                          stroke="var(--paper)"
+                          strokeWidth={2}
                         >
-                          {categoryPieData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          {categoryPieData.map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={SERIES[index % SERIES.length]} />
                           ))}
                         </Pie>
                         <Tooltip content={<CustomPieTooltip totalExpenseVal={totalExpenseVal} />} />
@@ -501,30 +455,30 @@ export function AnalyticsClient({ initialTransactions }: AnalyticsClientProps) {
                     </ResponsiveContainer>
                   </div>
 
-                  {/* Right: Side Panel list */}
-                  <div className="flex-1 w-full max-h-[260px] overflow-y-auto pr-1 space-y-2">
+                  {/* Ruled legend */}
+                  <div className="max-h-65 w-full flex-1 divide-y divide-rule overflow-y-auto">
                     {categoryPieData.map((item, idx) => {
-                      const color = COLORS[idx % COLORS.length];
+                      const color = SERIES[idx % SERIES.length];
                       const pct = totalExpenseVal > 0 ? (item.value / totalExpenseVal) * 100 : 0;
                       return (
                         <div
                           key={item.name}
-                          className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg border border-transparent hover:border-border hover:bg-stone-50 dark:hover:bg-stone-900/60 transition-all"
+                          className="flex items-center justify-between gap-3 py-2"
                         >
-                          <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex min-w-0 items-center gap-2.5">
                             <span
-                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              className="inline-block h-2.5 w-2.5 shrink-0"
                               style={{ backgroundColor: color }}
                             />
-                            <span className="font-medium text-foreground truncate uppercase tracking-wider text-[10px]">
+                            <span className="truncate text-xs text-ink-muted">
                               {item.name}
                             </span>
                           </div>
-                          <div className="flex items-center gap-3 ml-2 flex-shrink-0">
-                            <span className="font-bold text-foreground">
+                          <div className="flex shrink-0 items-center gap-3">
+                            <span className="tabular font-mono text-xs text-ink">
                               {formatCurrency(item.value)}
                             </span>
-                            <span className="text-stone-400 dark:text-stone-400 font-medium text-[10px]">
+                            <span className="tabular font-mono text-[10px] text-ink-faint">
                               {pct.toFixed(1)}%
                             </span>
                           </div>
@@ -534,7 +488,7 @@ export function AnalyticsClient({ initialTransactions }: AnalyticsClientProps) {
                   </div>
                 </div>
               )}
-            </div>
+            </Section>
           </div>
         </div>
       )}

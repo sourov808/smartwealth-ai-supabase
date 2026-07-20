@@ -1,60 +1,75 @@
+import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
+
 export default function AnalyticsLoading() {
   return (
-    <div className="space-y-8 animate-pulse">
-      {/* Header Skeleton */}
-      <div className="space-y-2">
-        <div className="h-8 w-56 bg-zinc-900 rounded-lg" />
-        <div className="h-4 w-96 bg-zinc-900/60 rounded" />
+    <div className="space-y-10">
+      {/* Masthead */}
+      <div className="flex flex-col gap-4 border-b border-rule pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-44" />
+          <SkeletonText width="w-80" />
+        </div>
+        <div className="space-y-2">
+          <SkeletonText width="w-20" className="h-2.5" />
+          <Skeleton className="h-8 w-full sm:w-52" />
+        </div>
       </div>
 
-      <div className="space-y-8">
-        {/* Large Chart Skeleton */}
-        <div className="bg-zinc-900/30 border border-zinc-900 rounded-2xl p-6 h-[380px] space-y-6">
-          <div className="flex items-center gap-2">
-            <div className="h-5 w-5 bg-zinc-900 rounded" />
-            <div className="h-6 w-48 bg-zinc-900 rounded" />
+      {/* KPI band */}
+      <div className="grid grid-cols-2 gap-8 border-b border-rule pb-8 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="space-y-2">
+            <SkeletonText width="w-24" className="h-2.5" />
+            <Skeleton className="h-9 w-32" />
+            <SkeletonText width="w-28" className="h-2.5" />
           </div>
-          {/* Simulated chart canvas */}
-          <div className="flex-1 h-60 bg-zinc-950/40 rounded-xl border border-zinc-900/60 flex items-end justify-between p-4">
-            {[30, 80, 45, 60, 90, 40, 75, 50, 65, 85, 35, 70].map((h, i) => (
-              <div
-                key={i}
-                style={{ height: `${h}%` }}
-                className="w-[6%] bg-zinc-900/50 rounded-t"
-              />
-            ))}
-          </div>
-        </div>
+        ))}
+      </div>
 
-        {/* Small Charts Grid Skeleton */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {[1, 2].map((i) => (
-            <div key={i} className="bg-zinc-900/30 border border-zinc-900 rounded-2xl p-6 h-[340px] space-y-5">
-              <div className="flex items-center gap-2">
-                <div className="h-5 w-5 bg-zinc-900 rounded" />
-                <div className="h-6 w-40 bg-zinc-900 rounded" />
-              </div>
-              <div className="h-52 bg-zinc-950/40 rounded-xl border border-zinc-900/60 flex items-center justify-center">
-                {/* Simulated circular pie chart skeleton for card 2 */}
-                {i === 2 ? (
-                  <div className="h-32 w-32 rounded-full border-8 border-zinc-900/60 flex items-center justify-center">
-                    <div className="h-16 w-16 rounded-full bg-zinc-950/20" />
-                  </div>
-                ) : (
-                  <div className="w-full h-full flex items-end justify-around p-6">
-                    {[50, 80, 30].map((h, idx) => (
-                      <div
-                        key={idx}
-                        style={{ height: `${h}%` }}
-                        className="w-16 bg-zinc-900/50 rounded-t"
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+      {/* Trend chart */}
+      <section className="space-y-4">
+        <div className="border-b border-rule pb-2">
+          <SkeletonText width="w-24" className="h-2.5" />
+        </div>
+        <div className="flex h-80 w-full items-end justify-between gap-1.5">
+          {[30, 80, 45, 60, 90, 40, 75, 50, 65, 85, 35, 70].map((h, i) => (
+            <Skeleton key={i} className="w-[6%]" style={{ height: `${h}%` }} />
           ))}
         </div>
+      </section>
+
+      {/* Two-up charts */}
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+        <section className="space-y-4">
+          <div className="border-b border-rule pb-2">
+            <SkeletonText width="w-32" className="h-2.5" />
+          </div>
+          <div className="flex h-70 w-full items-end justify-around">
+            {[50, 80].map((h, i) => (
+              <Skeleton key={i} className="w-11" style={{ height: `${h}%` }} />
+            ))}
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <div className="border-b border-rule pb-2">
+            <SkeletonText width="w-36" className="h-2.5" />
+          </div>
+          <div className="flex min-h-70 flex-col items-center justify-between gap-6 sm:flex-row">
+            <Skeleton className="h-55 w-55 shrink-0 rounded-full" />
+            <div className="w-full flex-1 divide-y divide-rule">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex items-center justify-between gap-3 py-2">
+                  <div className="flex items-center gap-2.5">
+                    <Skeleton className="h-2.5 w-2.5 rounded-none" />
+                    <SkeletonText width="w-24" className="h-2.5" />
+                  </div>
+                  <SkeletonText width="w-16" className="h-2.5" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );

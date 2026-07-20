@@ -4,21 +4,16 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { motion, AnimatePresence } from "motion/react";
-import {
-  MessageSquareText,
-  Send,
-  X,
-  Loader2,
-  Sparkles,
-  Trash2,
-  AlertTriangle,
-  CheckCircle2,
-  HelpCircle,
-  ArrowRight,
-  TrendingDown,
-  TrendingUp,
-} from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { MessageSquareText, X, Loader2 } from "lucide-react";
+
+import { Button, IconButton } from "@/components/ui/button";
+import { Empty } from "@/components/ui/empty";
+import { drawerSpring, scrim } from "@/lib/motion";
+import { MessageContent } from "@/components/dashboard/chat/message-content";
+import { ConfirmCard } from "@/components/dashboard/chat/confirm-card";
+import { ChatInput } from "@/components/dashboard/chat/chat-input";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { ToolTrail, type ToolActivity } from "@/components/dashboard/chat/tool-trail";
 
 interface Transaction {
   id: string;
@@ -34,8 +29,8 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   isError?: boolean;
-  // Tool call logs
-  activeTool?: string;
+  /** The agent's tool calls for this reply, in order. Rendered by ToolTrail. */
+  activities?: ToolActivity[];
   // Confirmation logs
   confirmRequired?: {
     action: string;
@@ -50,175 +45,6 @@ function generateUniqueId(): string {
   return `msg-${messageCounter}-${Date.now()}`;
 }
 
-function parseMarkdown(text: string): React.ReactNode {
-  if (!text) return null;
-
-  const lines = text.split("\n");
-  const elements: React.ReactNode[] = [];
-  
-  let inCodeBlock = false;
-  let codeBlockContent: string[] = [];
-  let codeBlockLang = "";
-
-  const processInline = (lineText: string, keyPrefix: string) => {
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-    const regex = /(\*\*.*?\*\*|`.*?`)/g;
-    const inlineMatches = Array.from(lineText.matchAll(regex));
-
-    inlineMatches.forEach((m, matchIndex) => {
-      const matchText = m[0];
-      const matchStart = m.index ?? 0;
-
-      if (matchStart > lastIndex) {
-        parts.push(
-          <span key={`${keyPrefix}-text-${matchIndex}`}>
-            {lineText.substring(lastIndex, matchStart)}
-          </span>
-        );
-      }
-
-      if (matchText.startsWith("**") && matchText.endsWith("**")) {
-        parts.push(
-          <strong key={`${keyPrefix}-bold-${matchIndex}`} className="font-bold text-foreground">
-            {matchText.slice(2, -2)}
-          </strong>
-        );
-      } else if (matchText.startsWith("`") && matchText.endsWith("`")) {
-        parts.push(
-          <code key={`${keyPrefix}-code-${matchIndex}`} className="px-1 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-[10px] font-mono border border-border">
-            {matchText.slice(1, -1)}
-          </code>
-        );
-      }
-
-      lastIndex = matchStart + matchText.length;
-    });
-
-    if (lastIndex < lineText.length) {
-      parts.push(
-        <span key={`${keyPrefix}-text-end`}>
-          {lineText.substring(lastIndex)}
-        </span>
-      );
-    }
-
-    return parts.length > 0 ? parts : lineText;
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Check code block
-    if (line.trim().startsWith("```")) {
-      if (inCodeBlock) {
-        // End code block
-        elements.push(
-          <pre key={`codeblock-${i}`} className="p-3 my-2 rounded-lg bg-stone-900 text-stone-100 dark:bg-stone-950 font-mono text-[10px] overflow-x-auto border border-border/10">
-            {codeBlockLang && (
-              <div className="text-[9px] text-stone-500 uppercase font-sans mb-1.5 border-b border-stone-800 pb-1">
-                {codeBlockLang}
-              </div>
-            )}
-            <code>{codeBlockContent.join("\n")}</code>
-          </pre>
-        );
-        inCodeBlock = false;
-        codeBlockContent = [];
-        codeBlockLang = "";
-      } else {
-        // Start code block
-        inCodeBlock = true;
-        codeBlockLang = line.trim().substring(3).trim();
-      }
-      continue;
-    }
-
-    if (inCodeBlock) {
-      codeBlockContent.push(line);
-      continue;
-    }
-
-    const trimmed = line.trim();
-
-    // Check headings
-    if (trimmed.startsWith("### ")) {
-      elements.push(
-        <h5 key={`h5-${i}`} className="text-xs font-bold text-foreground mt-3 mb-1">
-          {processInline(trimmed.substring(4), `h5-${i}`)}
-        </h5>
-      );
-      continue;
-    }
-    if (trimmed.startsWith("## ")) {
-      elements.push(
-        <h4 key={`h4-${i}`} className="text-xs font-bold text-foreground mt-4 mb-1">
-          {processInline(trimmed.substring(3), `h4-${i}`)}
-        </h4>
-      );
-      continue;
-    }
-    if (trimmed.startsWith("# ")) {
-      elements.push(
-        <h3 key={`h3-${i}`} className="text-sm font-bold text-foreground mt-4 mb-2">
-          {processInline(trimmed.substring(2), `h3-${i}`)}
-        </h3>
-      );
-      continue;
-    }
-
-    // Check bullets
-    if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-      elements.push(
-        <li key={`bullet-${i}`} className="list-disc ml-4 pl-0.5 text-stone-600 dark:text-stone-300 my-0.5">
-          {processInline(trimmed.replace(/^[-*]\s+/, ""), `bullet-${i}`)}
-        </li>
-      );
-      continue;
-    }
-
-    // Check numbered
-    if (/^\d+\.\s/.test(trimmed)) {
-      elements.push(
-        <li key={`numbered-${i}`} className="list-decimal ml-4 pl-0.5 text-stone-600 dark:text-stone-300 my-0.5">
-          {processInline(trimmed.replace(/^\d+\.\s+/, ""), `numbered-${i}`)}
-        </li>
-      );
-      continue;
-    }
-
-    // Horizontal rule
-    if (trimmed === "---") {
-      elements.push(<hr key={`hr-${i}`} className="my-3 border-border" />);
-      continue;
-    }
-
-    // Empty lines (spacing)
-    if (trimmed === "") {
-      elements.push(<div key={`space-${i}`} className="h-1.5" />);
-      continue;
-    }
-
-    // Default paragraph
-    elements.push(
-      <p key={`p-${i}`} className="text-stone-700 dark:text-stone-200">
-        {processInline(line, `p-${i}`)}
-      </p>
-    );
-  }
-
-  // Handle case where code block was not closed
-  if (inCodeBlock && codeBlockContent.length > 0) {
-    elements.push(
-      <pre key="codeblock-unclosed" className="p-3 my-2 rounded-lg bg-stone-900 text-stone-100 dark:bg-stone-950 font-mono text-[10px] overflow-x-auto border border-border/10">
-        <code>{codeBlockContent.join("\n")}</code>
-      </pre>
-    );
-  }
-
-  return <div className="space-y-1">{elements}</div>;
-}
-
 export function ChatAssistant() {
   const router = useRouter();
   const supabase = createClient();
@@ -229,9 +55,15 @@ export function ChatAssistant() {
   const [loading, setLoading] = useState(false);
   const [thinkingStatus, setThinkingStatus] = useState<string | null>(null);
 
+  const { confirm, dialog } = useConfirm();
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamContentRef = useRef("");
   const confirmDataRef = useRef<{ action: string; transaction: Transaction } | null>(null);
+  // Mirrors the activity list held in message state. The SSE loop needs the
+  // current value synchronously between events, which a state read cannot give
+  // it inside the same tick.
+  const activitiesRef = useRef<ToolActivity[]>([]);
 
   // Auto-scroll to bottom of messages
   const scrollToBottom = () => {
@@ -251,6 +83,28 @@ export function ChatAssistant() {
     "How much have I spent on Groceries?",
     "Set a budget of $500 for Food",
   ];
+
+  /**
+   * Stops every spinner in a reply's trail.
+   *
+   * Called on `done` and again in `finally`, because a stream that dies
+   * mid-tool never sends `done` — and a tool entry left in the `running` state
+   * spins forever, which reads as "still working" long after the request is
+   * dead.
+   */
+  const settleActivities = (messageId: string) => {
+    if (!activitiesRef.current.some((a) => a.state === "running")) return;
+
+    activitiesRef.current = activitiesRef.current.map((a) =>
+      a.state === "running" ? { ...a, state: "done" as const } : a
+    );
+
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === messageId ? { ...msg, activities: activitiesRef.current } : msg
+      )
+    );
+  };
 
   const handleSend = async (text: string) => {
     if (!text.trim() || loading) return;
@@ -275,10 +129,11 @@ export function ChatAssistant() {
     setInputValue("");
     setLoading(true);
     setThinkingStatus("Thinking...");
-    
+
     // Reset mutable stream refs
     streamContentRef.current = "";
     confirmDataRef.current = null;
+    activitiesRef.current = [];
 
     try {
       // Map frontend messages into backend format (role, content)
@@ -327,16 +182,47 @@ export function ChatAssistant() {
             const event = JSON.parse(cleanLine.substring(6));
 
             if (event.type === "tool_call") {
-              // Convert snake_case tools to a friendly visual status
+              // Each call closes out the previous one and appends its own entry,
+              // so the reply carries a complete record of what ran rather than
+              // just whatever happened to be last.
               const toolName = event.name.replace(/_/g, " ");
-              setThinkingStatus(`Running tool: ${toolName}...`);
-            } else if (event.type === "text") {
-              streamContentRef.current += event.content;
+
+              activitiesRef.current = [
+                ...activitiesRef.current.map((a) =>
+                  a.state === "running" ? { ...a, state: "done" as const } : a
+                ),
+                {
+                  id: `${assistantMsgId}-tool-${activitiesRef.current.length}`,
+                  label: toolName,
+                  state: "running" as const,
+                },
+              ];
+
               setThinkingStatus(null);
               setMessages((prev) =>
                 prev.map((msg) =>
                   msg.id === assistantMsgId
-                    ? { ...msg, content: streamContentRef.current }
+                    ? { ...msg, activities: activitiesRef.current }
+                    : msg
+                )
+              );
+            } else if (event.type === "text") {
+              streamContentRef.current += event.content;
+              setThinkingStatus(null);
+
+              // Text means every tool has returned; nothing should still spin.
+              activitiesRef.current = activitiesRef.current.map((a) =>
+                a.state === "running" ? { ...a, state: "done" as const } : a
+              );
+
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMsgId
+                    ? {
+                        ...msg,
+                        content: streamContentRef.current,
+                        activities: activitiesRef.current,
+                      }
                     : msg
                 )
               );
@@ -360,6 +246,7 @@ export function ChatAssistant() {
               throw new Error(event.message);
             } else if (event.type === "done") {
               setThinkingStatus(null);
+              settleActivities(assistantMsgId);
             }
           } catch (err) {
             console.error("Error parsing SSE line:", err);
@@ -386,6 +273,8 @@ export function ChatAssistant() {
     } finally {
       setLoading(false);
       setThinkingStatus(null);
+      // Covers the abort/error paths, where `done` never arrives.
+      settleActivities(assistantMsgId);
     }
   };
 
@@ -414,7 +303,12 @@ export function ChatAssistant() {
       );
     } catch (err) {
       console.error("Failed to delete transaction:", err);
-      alert("Failed to delete transaction database row.");
+      await confirm({
+        title: "Could not delete",
+        description:
+          "The transaction was not removed. The confirmation is still open, so you can try again.",
+        mode: "notice",
+      });
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === messageId ? { ...msg, confirmState: "pending" } : msg
@@ -441,15 +335,16 @@ export function ChatAssistant() {
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
+          transition={drawerSpring}
           onClick={() => setIsOpen(!isOpen)}
-          className="h-12 w-12 rounded-full bg-foreground text-background flex items-center justify-center shadow-lg border border-border cursor-pointer relative"
+          className="relative flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-ink text-paper"
         >
           {isOpen ? (
-            <X className="h-5 w-5 stroke-[2]" />
+            <X className="h-5 w-5" strokeWidth={2} />
           ) : (
             <>
-              <MessageSquareText className="h-5 w-5 stroke-[2]" />
-              <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-sage border-2 border-background animate-pulse" />
+              <MessageSquareText className="h-5 w-5" strokeWidth={2} />
+              <span className="absolute -top-1 -right-1 h-3.5 w-3.5 animate-pulse rounded-full border-2 border-paper bg-pos" />
             </>
           )}
         </motion.button>
@@ -459,13 +354,14 @@ export function ChatAssistant() {
       <AnimatePresence>
         {isOpen && (
           <>
-            {/* Backdrop overlay */}
+            {/* Backdrop overlay — flat scrim, no blur */}
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.3 }}
-              exit={{ opacity: 0 }}
+              variants={scrim}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
               onClick={() => setIsOpen(false)}
-              className="fixed inset-0 bg-stone-900/30 backdrop-blur-xs z-40"
+              className="fixed inset-0 z-40 bg-ink/25"
             />
 
             {/* Chat Container Drawer */}
@@ -473,176 +369,104 @@ export function ChatAssistant() {
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
-              transition={{ type: "spring", stiffness: 350, damping: 30 }}
-              className="fixed right-0 top-0 bottom-0 w-full sm:w-96 max-w-full bg-card border-l border-border shadow-2xl flex flex-col z-50 text-foreground"
+              transition={drawerSpring}
+              className="fixed right-0 top-0 bottom-0 z-50 flex w-full max-w-full flex-col border-l border-rule bg-paper text-ink sm:w-96"
             >
               {/* Header */}
-              <div className="p-4 border-b border-border flex items-center justify-between bg-stone-50 dark:bg-stone-900/30">
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-stone-100 dark:bg-stone-800 flex items-center justify-center border border-border">
-                    <Sparkles className="h-4 w-4 text-foreground stroke-[1.5]" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm tracking-tight">AI Assistant</h3>
-                    <p className="text-[10px] text-sage font-semibold flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-sage" />
-                      Active Financial Agent
-                    </p>
-                  </div>
+              <div className="flex items-center justify-between border-b border-rule px-5 py-4">
+                <div>
+                  <h3 className="display text-lg leading-tight text-ink">AI Assistant</h3>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-faint">
+                    <span className="h-1.5 w-1.5 rounded-full bg-pos" />
+                    Active Financial Agent
+                  </p>
                 </div>
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="p-1 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-lg transition-colors cursor-pointer text-foreground"
-                >
-                  <X className="h-4.5 w-4.5 stroke-[1.5]" />
-                </button>
+                <IconButton variant="quiet" onClick={() => setIsOpen(false)} aria-label="Close">
+                  <X className="h-4 w-4" strokeWidth={1.5} />
+                </IconButton>
               </div>
 
               {/* Message Feed Area */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div className="flex-1 overflow-y-auto">
                 {messages.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center px-4 space-y-6 pt-12">
-                    <div className="h-12 w-12 rounded-2xl bg-stone-50 dark:bg-stone-900 border border-border flex items-center justify-center">
-                      <HelpCircle className="h-6 w-6 text-stone-400 stroke-[1.5]" />
-                    </div>
-                    <div className="space-y-2">
-                      <h4 className="font-bold text-sm">Ask anything about your budget</h4>
-                      <p className="text-xs text-stone-400 max-w-[240px] leading-relaxed">
-                        I can list transactions, compute monthly expenses, update budgets, or set category limits.
-                      </p>
-                    </div>
-
-                    {/* Starter prompts grid */}
-                    <div className="w-full space-y-2 pt-4">
+                  <div className="px-5">
+                    <Empty
+                      title="Ask anything about your budget"
+                      description="I can list transactions, compute monthly expenses, update budgets, or set category limits."
+                    />
+                    {/* Starter prompts */}
+                    <div className="flex flex-col gap-2 pb-6">
                       {starterPrompts.map((prompt) => (
-                        <button
+                        <Button
                           key={prompt}
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handleSend(prompt)}
-                          className="w-full text-left px-3 py-2 text-xs border border-border rounded-lg bg-card hover:bg-stone-50 dark:hover:bg-stone-900/50 transition-colors flex items-center justify-between group cursor-pointer text-stone-600 dark:text-stone-300"
+                          className="justify-start text-left"
                         >
-                          <span>{prompt}</span>
-                          <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </button>
+                          {prompt}
+                        </Button>
                       ))}
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="divide-y divide-rule">
                     {messages.map((msg) => {
                       const isUser = msg.role === "user";
                       return (
                         <div
                           key={msg.id}
-                          className={`flex flex-col ${
-                            isUser ? "items-end" : "items-start"
-                          }`}
+                          className={`px-5 py-4 ${isUser ? "bg-paper-sunken" : ""}`}
                         >
-                          {/* Chat Bubble */}
+                          <p className="eyebrow mb-1.5 text-ink-faint">
+                            {isUser ? "you" : "assistant"}
+                          </p>
+
+                          {!isUser && msg.activities && (
+                            <ToolTrail activities={msg.activities} />
+                          )}
+
                           <div
-                            className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed border ${
+                            className={`text-xs leading-relaxed ${
                               isUser
-                                ? "bg-foreground text-background border-transparent font-medium whitespace-pre-wrap"
+                                ? "whitespace-pre-wrap text-ink"
                                 : msg.isError
-                                ? "bg-rust-light border-rust/10 text-rust whitespace-pre-wrap"
-                                : "bg-stone-50 dark:bg-stone-900/40 border-border text-foreground"
+                                  ? "whitespace-pre-wrap text-neg"
+                                  : "text-ink"
                             }`}
                           >
                             {msg.content ? (
                               isUser ? (
                                 msg.content
                               ) : (
-                                parseMarkdown(msg.content)
+                                <MessageContent content={msg.content} />
                               )
                             ) : (
-                              <div className="flex items-center gap-1.5 text-stone-400">
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                <span>Typing...</span>
-                              </div>
+                              // Only when there is nothing else to look at. Once
+                              // the trail is showing, it already says the agent
+                              // is working, and two spinners read as two jobs.
+                              !msg.activities?.length && (
+                                <div className="flex items-center gap-1.5 text-ink-faint">
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  <span>Thinking…</span>
+                                </div>
+                              )
                             )}
                           </div>
 
                           {/* Delete Confirmation Card Attachment */}
                           {!isUser && msg.confirmRequired && (
-                            <div className="mt-3 w-full max-w-[85%] bg-card border border-border rounded-xl p-4 space-y-3 shadow-sm">
-                              <div className="flex items-start gap-2.5">
-                                <div className="p-1.5 rounded-lg bg-rust-light border border-rust/10 text-rust">
-                                  <AlertTriangle className="h-4 w-4 stroke-[1.5]" />
-                                </div>
-                                <div className="space-y-1">
-                                  <p className="text-xs font-bold text-foreground">
-                                    Approve Transaction Deletion
-                                  </p>
-                                  <p className="text-[10px] text-stone-400">
-                                    This action will permanently remove the record from your account.
-                                  </p>
-                                </div>
-                              </div>
-
-                              {/* Transaction Ledger Item */}
-                              <div className="bg-stone-50 dark:bg-stone-900/30 border border-border rounded-lg p-2.5 flex items-center justify-between text-xs">
-                                <div className="min-w-0">
-                                  <p className="font-semibold text-foreground truncate">
-                                    {msg.confirmRequired.transaction.description ||
-                                      msg.confirmRequired.transaction.category}
-                                  </p>
-                                  <p className="text-[10px] text-stone-400 mt-0.5">
-                                    {msg.confirmRequired.transaction.date} • {msg.confirmRequired.transaction.category}
-                                  </p>
-                                </div>
-                                <span
-                                  className={`font-bold flex items-center gap-0.5 shrink-0 ${
-                                    msg.confirmRequired.transaction.type === "expense"
-                                      ? "text-rust"
-                                      : "text-sage"
-                                  }`}
-                                >
-                                  {msg.confirmRequired.transaction.type === "expense" ? (
-                                    <TrendingDown className="h-3 w-3 shrink-0" />
-                                  ) : (
-                                    <TrendingUp className="h-3 w-3 shrink-0" />
-                                  )}
-                                  {formatCurrency(msg.confirmRequired.transaction.amount)}
-                                </span>
-                              </div>
-
-                              {/* Action buttons based on confirmation state */}
-                              {msg.confirmState === "pending" && (
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() =>
-                                      handleApproveDelete(
-                                        msg.id,
-                                        msg.confirmRequired!.transaction.id
-                                      )
-                                    }
-                                    className="flex-1 bg-rust text-white dark:text-stone-900 font-bold py-1.5 px-3 rounded-lg text-[10px] flex items-center justify-center gap-1 cursor-pointer hover:opacity-90 transition-opacity"
-                                  >
-                                    <Trash2 className="h-3 w-3 stroke-[2]" />
-                                    <span>Approve Delete</span>
-                                  </button>
-                                  <button
-                                    onClick={() => handleCancelDelete(msg.id)}
-                                    className="flex-1 bg-transparent hover:bg-stone-100 dark:hover:bg-stone-800 border border-border text-stone-600 dark:text-stone-300 font-bold py-1.5 px-3 rounded-lg text-[10px] cursor-pointer transition-colors"
-                                  >
-                                    <span>Cancel</span>
-                                  </button>
-                                </div>
-                              )}
-
-                              {msg.confirmState === "approved" && (
-                                <div className="flex items-center gap-1 text-[10px] text-sage font-bold py-1">
-                                  <CheckCircle2 className="h-3.5 w-3.5" />
-                                  <span>Deletion Approved & Completed</span>
-                                </div>
-                              )}
-
-                              {msg.confirmState === "cancelled" && (
-                                <div className="flex items-center gap-1 text-[10px] text-stone-400 font-bold py-1">
-                                  <X className="h-3.5 w-3.5" />
-                                  <span>Deletion Cancelled</span>
-                                </div>
-                              )}
-                            </div>
+                            <ConfirmCard
+                              transaction={msg.confirmRequired.transaction}
+                              confirmState={msg.confirmState}
+                              onApprove={() =>
+                                handleApproveDelete(
+                                  msg.id,
+                                  msg.confirmRequired!.transaction.id
+                                )
+                              }
+                              onCancel={() => handleCancelDelete(msg.id)}
+                            />
                           )}
                         </div>
                       );
@@ -650,7 +474,7 @@ export function ChatAssistant() {
 
                     {/* Thinking status line */}
                     {thinkingStatus && (
-                      <div className="flex items-center gap-2 text-stone-400 text-xs pl-1">
+                      <div className="flex items-center gap-2 px-5 py-3 text-xs text-ink-faint">
                         <Loader2 className="h-3 w-3 animate-spin" />
                         <span className="italic">{thinkingStatus}</span>
                       </div>
@@ -662,35 +486,20 @@ export function ChatAssistant() {
               </div>
 
               {/* Chat Input Footer Form */}
-              <div className="p-4 border-t border-border bg-stone-50 dark:bg-stone-900/30">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSend(inputValue);
-                  }}
-                  className="flex gap-2"
-                >
-                  <input
-                    type="text"
-                    disabled={loading}
-                    placeholder="Ask about budgets or ledger..."
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    className="flex-1 bg-card border border-border focus:border-foreground focus:ring-1 focus:ring-foreground rounded-lg py-2 px-3 text-xs outline-none transition-all placeholder:text-stone-400 text-foreground"
-                  />
-                  <button
-                    type="submit"
-                    disabled={loading || !inputValue.trim()}
-                    className="h-8.5 w-8.5 rounded-lg bg-foreground text-background flex items-center justify-center shrink-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
-                  >
-                    <Send className="h-3.5 w-3.5 stroke-[2]" />
-                  </button>
-                </form>
+              <div className="border-t border-rule px-5 py-4">
+                <ChatInput
+                  value={inputValue}
+                  onChange={setInputValue}
+                  onSubmit={() => handleSend(inputValue)}
+                  disabled={loading}
+                />
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
+
+      {dialog}
     </>
   );
 }

@@ -1,14 +1,15 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { Sidebar } from "@/components/layout/sidebar";
 
+import { Sidebar } from "@/components/layout/sidebar";
 import { ChatAssistant } from "@/components/dashboard/chat-assistant";
 import { RealtimeListener } from "@/components/dashboard/realtime-listener";
+import { Skeleton } from "@/components/ui/skeleton";
+import { createClient } from "@/lib/supabase/server";
 
 async function SidebarLoader() {
   const supabase = await createClient();
-  
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -17,7 +18,6 @@ async function SidebarLoader() {
     redirect("/");
   }
 
-  // Fetch user profile from the database
   const { data: profile } = await supabase
     .from("profiles")
     .select("username")
@@ -30,42 +30,39 @@ async function SidebarLoader() {
   return <Sidebar username={username} email={email} />;
 }
 
+function SidebarFallback() {
+  return (
+    <div className="hidden w-56 shrink-0 px-6 py-8 md:block">
+      <Skeleton className="mb-12 h-6 w-20" />
+      <div className="space-y-3">
+        <Skeleton className="h-5 w-28" />
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="h-5 w-24" />
+        <Skeleton className="h-5 w-28" />
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-background text-foreground font-sans">
-      {/* Sidebar Navigation */}
-      <Suspense
-        fallback={
-          <div className="w-64 bg-card border-r border-border min-h-screen p-6 animate-pulse hidden md:block">
-            <div className="h-9 w-24 bg-stone-200 dark:bg-stone-800 rounded-lg mb-10" />
-            <div className="space-y-4">
-              <div className="h-8 bg-stone-200 dark:bg-stone-800 rounded-lg w-full" />
-              <div className="h-8 bg-stone-200 dark:bg-stone-800 rounded-lg w-full" />
-              <div className="h-8 bg-stone-200 dark:bg-stone-800 rounded-lg w-full" />
-            </div>
-          </div>
-        }
-      >
+    <div className="flex min-h-screen flex-col bg-paper font-sans text-ink md:flex-row">
+      <Suspense fallback={<SidebarFallback />}>
         <SidebarLoader />
       </Suspense>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 bg-background md:p-8 p-4 overflow-y-auto">
-        <div className="max-w-6xl w-full mx-auto space-y-6">
-          {children}
-        </div>
+      <main className="flex min-w-0 flex-1 flex-col overflow-y-auto px-5 py-8 md:px-12 md:py-14">
+        {/* Narrower than the previous 6xl. Editorial layouts depend on a
+            measure that does not run past comfortable reading width. */}
+        <div className="mx-auto w-full max-w-5xl space-y-section">{children}</div>
       </main>
 
-      {/* Realtime PostgreSQL changes listener */}
       <RealtimeListener />
-
-      {/* Floating AI Chat Assistant */}
       <ChatAssistant />
     </div>
   );
 }
-

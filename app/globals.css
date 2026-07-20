@@ -1,72 +1,233 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #37352f;
-  --card: #fbfbfa;
-  --card-foreground: #37352f;
-  --border: #e3e2e0;
-  --ring: #37352f;
-  
-  --color-sage: #448361;
-  --color-sage-hover: #37694d;
-  --color-sage-light: #edf6ec;
-  
-  --color-rust: #d44c47;
-  --color-rust-hover: #b33e3a;
-  --color-rust-light: #fbebeb;
+/**
+ * Editorial Ledger — design tokens.
+ *
+ * Two rules govern this file:
+ *
+ * 1. Components never write a raw color. Every surface, text, and accent value
+ *    is a token defined here. Before this system the app mixed `stone-*`,
+ *    `zinc-*`, and `neutral-*` for the same job, which is most of why it read
+ *    as flat and unconsidered.
+ *
+ * 2. Tokens are named for role, not appearance. `--pos` / `--neg` rather than
+ *    `--sage` / `--rust`, so retuning the palette does not mean renaming
+ *    identifiers across the codebase.
+ *
+ * Theming is driven by `data-theme` on <html>, set before first paint by the
+ * inline script in app/layout.tsx. The `prefers-color-scheme` media query is
+ * only the first-visit default; once the user picks, localStorage wins.
+ */
 
-  --color-amber-brand: #df9016;
-  --color-amber-brand-hover: #c57d11;
+:root,
+[data-theme="light"] {
+  /* Surfaces. Near-white with only a trace of warmth — enough that it is not
+     clinical, not so much that it reads dusty. */
+  --paper: #fcfcfb;
+  --paper-raised: #ffffff;
+  --paper-sunken: #f4f4f2;
+
+  /* Ink */
+  --ink: #16161a;
+  --ink-muted: #6a6a72;
+  --ink-faint: #9b9ba3;
+
+  /* Rules — the structural element that replaces card borders */
+  --rule: #e6e6e3;
+  --rule-strong: #cfcfcb;
+
+  /**
+   * Accent: deep forest.
+   *
+   * It shares a family with `--pos`, so the two are separated by value rather
+   * than hue — the accent is dark and desaturated, `--pos` is mid-brightness
+   * and clean. That keeps "this is the active nav item" distinct from "this is
+   * money coming in" even though both are green.
+   */
+  --accent: #2c4a3b;
+  --accent-hover: #1f3729;
+  --accent-soft: #eaf1ed;
+
+  /* Money and status */
+  --pos: #2f8f5b;
+  --pos-soft: #e8f4ed;
+  --neg: #b3392c;
+  --neg-soft: #fbecea;
+  --warn: #a8730f;
+  --warn-soft: #f9f1e0;
+
+  /* Chart series. Tuned for the cool canvas — these must stay distinguishable
+     from each other AND from the pos/neg pair used elsewhere on the page. */
+  --series-1: #2c4a3b;
+  --series-2: #b3392c;
+  --series-3: #a8730f;
+  --series-4: #3f5f7a;
+  --series-5: #7b5769;
+  --series-6: #4f7d6a;
+  --series-7: #99562f;
+  --series-8: #55606e;
+
+  /* Shadow. Neutral now that the canvas is neutral; a warm shadow on a cool
+     paper reads as a color cast. */
+  --shadow-raised: 0 1px 2px rgb(22 22 26 / 0.05), 0 8px 24px rgb(22 22 26 / 0.07);
+
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #191919;
-    --foreground: rgba(255, 255, 255, 0.9);
-    --card: #202020;
-    --card-foreground: rgba(255, 255, 255, 0.9);
-    --border: #2c2c2c;
-    --ring: rgba(255, 255, 255, 0.9);
+[data-theme="dark"] {
+  --paper: #121214;
+  --paper-raised: #1a1a1d;
+  --paper-sunken: #0e0e10;
 
-    --color-sage: #6bab88;
-    --color-sage-hover: #589272;
-    --color-sage-light: #1f2a24;
-    
-    --color-rust: #ff7369;
-    --color-rust-hover: #e06259;
-    --color-rust-light: #321c1a;
+  --ink: #e9e9ec;
+  --ink-muted: #93939c;
+  --ink-faint: #63636b;
 
-    --color-amber-brand: #e9a941;
-    --color-amber-brand-hover: #d19432;
-  }
+  --rule: #2a2a2e;
+  --rule-strong: #3c3c42;
+
+  /* Inverted relationship: on ink, the accent must be the LIGHTER green and
+     `--pos` the more saturated one, or the accent disappears into the canvas. */
+  --accent: #7fb79a;
+  --accent-hover: #96c7ac;
+  --accent-soft: #16241d;
+
+  --pos: #5fbf8a;
+  --pos-soft: #14251c;
+  --neg: #e2705c;
+  --neg-soft: #2a1715;
+  --warn: #d9a34a;
+  --warn-soft: #271e12;
+
+  --series-1: #7fb79a;
+  --series-2: #e2705c;
+  --series-3: #d9a34a;
+  --series-4: #7fa3c7;
+  --series-5: #b98fa3;
+  --series-6: #6fb3a0;
+  --series-7: #c98a5e;
+  --series-8: #8d99a8;
+
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.35);
+
+  color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-border: var(--border);
-  --color-ring: var(--ring);
+  --color-paper: var(--paper);
+  --color-paper-raised: var(--paper-raised);
+  --color-paper-sunken: var(--paper-sunken);
 
-  --color-sage: var(--color-sage);
-  --color-sage-hover: var(--color-sage-hover);
-  --color-sage-light: var(--color-sage-light);
-  
-  --color-rust: var(--color-rust);
-  --color-rust-hover: var(--color-rust-hover);
-  --color-rust-light: var(--color-rust-light);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
 
-  --color-amber-brand: var(--color-amber-brand);
-  --color-amber-brand-hover: var(--color-amber-brand-hover);
-  
-  --font-sans: var(--font-sans), sans-serif;
-  --font-mono: var(--font-geist-mono), monospace;
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-pos: var(--pos);
+  --color-pos-soft: var(--pos-soft);
+  --color-neg: var(--neg);
+  --color-neg-soft: var(--neg-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-series-5: var(--series-5);
+  --color-series-6: var(--series-6);
+  --color-series-7: var(--series-7);
+  --color-series-8: var(--series-8);
+
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-serif), ui-serif, Georgia, serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Rhythm. Sections are separated by space and a hairline, never by a box. */
+  --spacing-section: 3.5rem;
+  --spacing-block: 1.5rem;
+
+  --shadow-raised: var(--shadow-raised);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
+/**
+ * Tailwind v4's `dark:` variant follows prefers-color-scheme by default, which
+ * would ignore the manual toggle. Rebind it to the attribute. Most components
+ * need no `dark:` at all — the tokens already flip — but this keeps the escape
+ * hatch correct where one is genuinely needed.
+ */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@layer base {
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Money must align down a column. Applied wherever the mono face is used for
+     figures; see components/ui/money.tsx. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* Instrument Serif runs optically large and loose. Display sizes need
+     negative tracking and tight leading to read as a set headline rather than
+     as body text that happened to be scaled up. */
+  .display {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    line-height: 0.95;
+  }
+
+  .eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  /* One focus treatment everywhere, legible on both paper and ink. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* Native controls should inherit the theme rather than render as OS chrome. */
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+/* Motion variants collapse to instant; see lib/motion.ts. This handles the
+   CSS-driven transitions those variants don't cover. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

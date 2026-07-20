@@ -14,12 +14,8 @@ export default function RootPage() {
 
   useEffect(() => {
     async function checkAuth() {
-      // Small timeout to give it a premium initial feel rather than abrupt jump
-      const checkDelay = new Promise((resolve) => setTimeout(resolve, 800));
-      const getSessionPromise = supabase.auth.getSession();
-      
-      const [, sessionResult] = await Promise.all([checkDelay, getSessionPromise]);
-      const session = sessionResult.data.session;
+      const { data } = await supabase.auth.getSession();
+      const session = data.session;
 
       if (session) {
         setStatus("redirecting");
@@ -39,7 +35,7 @@ export default function RootPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-background text-foreground font-sans px-4 relative">
+    <div className="relative flex min-h-screen w-full items-center justify-center bg-paper px-6 text-ink">
       <AnimatePresence mode="wait">
         {status === "checking" && (
           <AuthLoading key="checking" message="Verifying session..." />

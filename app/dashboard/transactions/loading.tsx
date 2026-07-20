@@ -1,42 +1,56 @@
+import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
+
 export default function TransactionsLoading() {
   return (
-    <div className="space-y-8 animate-pulse">
-      {/* Header Skeleton */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-section">
+      {/* Masthead */}
+      <div className="flex flex-col gap-4 border-b border-rule pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
-          <div className="h-8 w-60 bg-zinc-900 rounded-lg" />
-          <div className="h-4 w-80 bg-zinc-900/60 rounded" />
+          <Skeleton className="h-8 w-56" />
+          <SkeletonText width="w-80" />
         </div>
-        <div className="h-10 w-36 bg-zinc-900 rounded-lg" />
+        <Skeleton className="h-8 w-36" />
       </div>
 
-      {/* Filter and Search Bar Skeleton */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-zinc-900/30 border border-zinc-900 rounded-2xl">
-        <div className="md:col-span-2 h-10 bg-zinc-900 rounded-lg" />
-        <div className="h-10 bg-zinc-900 rounded-lg" />
-        <div className="h-10 bg-zinc-900 rounded-lg" />
+      {/* Filter row */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+        <div className="space-y-2 sm:flex-1">
+          <SkeletonText width="w-16" className="h-2.5" />
+          <Skeleton className="h-8 w-full" />
+        </div>
+        <div className="space-y-2 sm:w-44 sm:shrink-0">
+          <SkeletonText width="w-12" className="h-2.5" />
+          <Skeleton className="h-8 w-full" />
+        </div>
+        <div className="space-y-2 sm:w-44 sm:shrink-0">
+          <SkeletonText width="w-20" className="h-2.5" />
+          <Skeleton className="h-8 w-full" />
+        </div>
       </div>
 
-      {/* Main Ledger Table Skeleton */}
-      <div className="bg-zinc-900/30 border border-zinc-900 rounded-2xl overflow-hidden">
-        <div className="p-6 border-b border-zinc-900 flex justify-between">
-          <div className="h-4 w-32 bg-zinc-900 rounded" />
-          <div className="h-4 w-20 bg-zinc-900/60 rounded" />
+      {/* Ledger */}
+      <div>
+        <div className="flex items-center gap-4 border-b border-rule py-2.5">
+          <SkeletonText width="w-24" className="h-2.5 flex-1" />
+          <SkeletonText width="w-16" className="h-2.5" />
+          <SkeletonText width="w-12" className="h-2.5" />
+          <SkeletonText width="w-16" className="h-2.5" />
         </div>
-        <div className="p-6 space-y-5">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex items-center justify-between pt-4 first:pt-0 border-t first:border-t-0 border-zinc-900/50">
-              <div className="flex items-center gap-3">
-                <div className="h-9 w-9 bg-zinc-900 rounded-lg" />
-                <div className="space-y-2">
-                  <div className="h-4 w-36 bg-zinc-900 rounded" />
-                  <div className="h-3 w-16 bg-zinc-900/50 rounded" />
+
+        <div className="divide-y divide-rule">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="flex items-center gap-4 py-3.5">
+              <div className="flex flex-1 items-center gap-3">
+                <Skeleton className="h-8 w-8" />
+                <div className="space-y-1.5">
+                  <SkeletonText width="w-36" />
+                  <SkeletonText width="w-16" className="h-2.5" />
                 </div>
               </div>
-              <div className="flex items-center gap-6">
-                <div className="h-4 w-20 bg-zinc-900 rounded" />
-                <div className="h-4 w-12 bg-zinc-900/60 rounded" />
-              </div>
+              <SkeletonText width="w-20" />
+              <Skeleton className="h-4 w-16 rounded-full" />
+              <Skeleton className="h-4 w-16 rounded-full" />
+              <SkeletonText width="w-20" />
             </div>
           ))}
         </div>
